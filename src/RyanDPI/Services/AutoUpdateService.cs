@@ -629,6 +629,7 @@ try {{
 }} catch {{}}
 
 if (Test-Path $launchExe) {{
+    try {{ Start-Process -FilePath 'ie4uinit.exe' -ArgumentList '-show' -WindowStyle Hidden -ErrorAction SilentlyContinue }} catch {{}}
     if ($exitCode -eq 0) {{
         Write-ULog ""Relaunching updated app: $launchExe --updated {EscapePsSingleQuoted(newVersion)}""
         Start-Process -FilePath $launchExe -ArgumentList '--updated {EscapePsSingleQuoted(newVersion)}'
@@ -686,6 +687,7 @@ try {{
 $launchExe = Join-Path $target 'RyanDPI.exe'
 if (-not (Test-Path $launchExe)) {{ $launchExe = '{EscapePsSingleQuoted(fallbackExe)}' }}
 if (Test-Path $launchExe) {{
+    try {{ Start-Process -FilePath 'ie4uinit.exe' -ArgumentList '-show' -WindowStyle Hidden -ErrorAction SilentlyContinue }} catch {{}}
     if ($updatedOk) {{
         Start-Process -FilePath $launchExe -ArgumentList '--updated {EscapePsSingleQuoted(newVersion)}'
     }} else {{

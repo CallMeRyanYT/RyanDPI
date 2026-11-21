@@ -2,7 +2,7 @@
 ; Requires Inno Setup 6
 
 #define MyAppName "RyanDPI"
-#define MyAppVersion "2.3.0"
+#define MyAppVersion "2.3.1"
 #define MyAppPublisher "RyanDPI"
 #define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
 #define MyAppExeName "RyanDPI.exe"
@@ -26,6 +26,7 @@ turkish.DotNetMissing=RyanDPI için Microsoft .NET 8.0 Desktop Runtime (x64) ger
 
 [Setup]
 ShowLanguageDialog=auto
+ChangesAssociations=yes
 AppId={{8D4F62C9-1A7B-4C94-9E35-72A8B1F4209E}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -65,9 +66,9 @@ Source: "RyanDPI\bin\Release\net8.0-windows\res\*"; DestDir: "{app}\res"; Flags:
 Source: "RyanDPI\bin\Release\net8.0-windows\Prerequisites\*"; DestDir: "{app}\Prerequisites"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0; Tasks: desktopicon
 
 [Registry]
 Root: HKLM; Subkey: "SOFTWARE\RyanDPI"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
@@ -129,6 +130,17 @@ begin
   Exec('sc.exe', 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(300);
   Exec('sc.exe', 'delete ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    // Flush Windows Explorer shell icon cache so Taskbar, Desktop & Start Menu show the latest icon immediately
+    Exec(ExpandConstant('{sys}\ie4uinit.exe'), '-show', '', SW_HIDE, ewNoWait, ResultCode);
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

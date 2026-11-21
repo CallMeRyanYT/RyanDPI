@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Win32;
 using RyanDPI.Models;
@@ -24,6 +26,28 @@ namespace RyanDPI
 
         private readonly ObservableCollection<string> _excludedApps = new();
         private readonly ObservableCollection<SelfTestDisplayItem> _selfTestItems = new();
+        private IntPtr _hIconBig = IntPtr.Zero;
+        private IntPtr _hIconSmall = IntPtr.Zero;
+
+        private const int WM_SETICON = 0x0080;
+        private const int ICON_SMALL = 0;
+        private const int ICON_BIG = 1;
+        private const int SM_CXICON = 11;
+        private const int SM_CXSMICON = 49;
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr CreateIconFromResourceEx(
+            byte[] pbIconBits, uint cbIconBits, bool fIcon, uint dwVersion,
+            int cxDesired, int cyDesired, uint uFlags);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
+        [DllImport("user32.dll")]
+        private static extern int GetSystemMetrics(int nIndex);
 
         public MainWindow()
         {
@@ -60,6 +84,88 @@ namespace RyanDPI
             }
         }
 
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            ApplyNativeWindowIcons();
+        }
+
+        private void ApplyNativeWindowIcons()
+        {
+            // Explicitly push BIG (taskbar / Alt-Tab) and SMALL (window) HICONs via WM_SETICON
+            // directly from the embedded ryandpi.ico so Windows 11 Taskbar never shows a stale cached icon.
+            try
+            {
+                var sri = Application.GetResourceStream(new Uri("pack://application:,,,/RyanDPI;component/Resources/ryandpi.ico", UriKind.Absolute));
+                if (sri == null) return;
+
+                byte[] icoBytes;
+                using (var ms = new MemoryStream())
+                {
+                    sri.Stream.CopyTo(ms);
+                    icoBytes = ms.ToArray();
+                }
+
+                if (icoBytes.Length < 22) return;
+
+                var hwnd = new WindowInteropHelper(this).Handle;
+                if (hwnd == IntPtr.Zero) return;
+
+                int bigTarget = Math.Max(48, GetSystemMetrics(SM_CXICON));
+                int smallTarget = Math.Max(16, GetSystemMetrics(SM_CXSMICON));
+
+                _hIconBig = CreateBestIconFromIco(icoBytes, bigTarget);
+                _hIconSmall = CreateBestIconFromIco(icoBytes, smallTarget);
+
+                if (_hIconBig != IntPtr.Zero)
+                {
+                    SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_BIG, _hIconBig);
+                }
+                if (_hIconSmall != IntPtr.Zero)
+                {
+                    SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_SMALL, _hIconSmall);
+                }
+            }
+            catch
+            {
+                // Fall back cleanly to XAML Window.Icon
+            }
+        }
+
+        private static IntPtr CreateBestIconFromIco(byte[] icoBytes, int targetSize)
+        {
+            int count = BitConverter.ToUInt16(icoBytes, 4);
+            int bestIndex = -1;
+            int bestScore = int.MaxValue;
+
+            for (int i = 0; i < count; i++)
+            {
+                int entryOff = 6 + i * 16;
+                if (entryOff + 16 > icoBytes.Length) break;
+
+                int w = icoBytes[entryOff] == 0 ? 256 : icoBytes[entryOff];
+                // Prefer exact match or smallest frame >= targetSize
+                int score = w >= targetSize ? (w - targetSize) : (1000 + (targetSize - w));
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    bestIndex = i;
+                }
+            }
+
+            if (bestIndex < 0) return IntPtr.Zero;
+
+            int off = 6 + bestIndex * 16;
+            int dataLen = BitConverter.ToInt32(icoBytes, off + 8);
+            int dataOff = BitConverter.ToInt32(icoBytes, off + 12);
+            if (dataLen <= 0 || dataOff < 0 || dataOff + dataLen > icoBytes.Length) return IntPtr.Zero;
+
+            var frameBytes = new byte[dataLen];
+            Buffer.BlockCopy(icoBytes, dataOff, frameBytes, 0, dataLen);
+
+            return CreateIconFromResourceEx(frameBytes, (uint)dataLen, true, 0x00030000, targetSize, targetSize, 0);
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             try
@@ -71,6 +177,8 @@ namespace RyanDPI
             {
                 // Ignore cancellation disposal errors
             }
+            if (_hIconBig != IntPtr.Zero) { DestroyIcon(_hIconBig); _hIconBig = IntPtr.Zero; }
+            if (_hIconSmall != IntPtr.Zero) { DestroyIcon(_hIconSmall); _hIconSmall = IntPtr.Zero; }
             LogService.LineLogged -= OnLogLineReceived;
             base.OnClosed(e);
         }

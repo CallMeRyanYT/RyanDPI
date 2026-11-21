@@ -23,10 +23,10 @@ RyanDPI replaces complex multi-tool setups with a single, high-speed, system-wid
 
 ## Download & Quick Start
 
-[![Download Windows Setup](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.0/RyanDPI-Setup-Windows-2.3.0.exe)
-[![Download Portable ZIP](https://img.shields.io/badge/Download-Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.0/RyanDPI-Portable-Windows-2.3.0.zip)
+[![Download Windows Setup](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.1/RyanDPI-Setup-Windows-2.3.1.exe)
+[![Download Portable ZIP](https://img.shields.io/badge/Download-Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.1/RyanDPI-Portable-Windows-2.3.1.zip)
 
-1. Download and run **[RyanDPI-Setup-Windows-2.3.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.0/RyanDPI-Setup-Windows-2.3.0.exe)** (or extract the [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.0/RyanDPI-Portable-Windows-2.3.0.zip) and run `RyanDPI.exe`).
+1. Download and run **[RyanDPI-Setup-Windows-2.3.1.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.1/RyanDPI-Setup-Windows-2.3.1.exe)** (or extract the [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.1/RyanDPI-Portable-Windows-2.3.1.zip) and run `RyanDPI.exe`).
 2. Launch **RyanDPI** (Administrator privileges are requested automatically to manage Windows services and DNS).
 3. *(Optional)* Click **`TR`** in the top-right title bar anytime to switch the entire app to Turkish.
 4. Click **"Install & Enable RyanDPI"** and wait ~10 seconds for the 5-step automatic setup to complete.

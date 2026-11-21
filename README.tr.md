@@ -23,10 +23,10 @@ RyanDPI karmaşık çoklu araç kurulumlarını tek bir yüksek hızlı, sistem 
 
 ## İndirme ve Hızlı Başlangıç
 
-[![Windows Kurulumunu İndir](https://img.shields.io/badge/İndir-Windows%20Kurulum%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.0/RyanDPI-Setup-Windows-2.3.0.exe)
-[![Taşınabilir ZIP İndir](https://img.shields.io/badge/İndir-Taşınabilir%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.0/RyanDPI-Portable-Windows-2.3.0.zip)
+[![Windows Kurulumunu İndir](https://img.shields.io/badge/İndir-Windows%20Kurulum%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.1/RyanDPI-Setup-Windows-2.3.1.exe)
+[![Taşınabilir ZIP İndir](https://img.shields.io/badge/İndir-Taşınabilir%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.1/RyanDPI-Portable-Windows-2.3.1.zip)
 
-1. **[RyanDPI-Setup-Windows-2.3.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.0/RyanDPI-Setup-Windows-2.3.0.exe)** dosyasını indirip çalıştır (veya [Taşınabilir ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.0/RyanDPI-Portable-Windows-2.3.0.zip) arşivini çıkarıp `RyanDPI.exe` dosyasını aç).
+1. **[RyanDPI-Setup-Windows-2.3.1.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.1/RyanDPI-Setup-Windows-2.3.1.exe)** dosyasını indirip çalıştır (veya [Taşınabilir ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.3.1/RyanDPI-Portable-Windows-2.3.1.zip) arşivini çıkarıp `RyanDPI.exe` dosyasını aç).
 2. **RyanDPI** uygulamasını başlat (Windows hizmetlerini ve DNS'i yönetmek için Yönetici izni otomatik istenir).
 3. Sağ üst başlıktaki **`TR`** düğmesine tıklayarak tüm uygulamayı anında **Türkçe** yapabilirsin.
 4. **"RyanDPI'yı Kur ve Etkinleştir"** düğmesine tıkla ve 5 adımlı otomatik kurulumun (~10 saniye) tamamlanmasını bekle.
