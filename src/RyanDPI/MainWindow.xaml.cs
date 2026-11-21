@@ -18,6 +18,7 @@ namespace RyanDPI
         private RyanDpiSettings _settings;
         private RyanDpiStatus? _currentStatus;
         private bool _isBusy;
+        private bool _isUpdatingLanguage;
         private bool _lastNoticeIsSuccess = true;
         private List<SelfTestCheckResult> _lastSelfTestRaw = new();
 
@@ -29,15 +30,15 @@ namespace RyanDPI
             InitializeComponent();
 
             _settings = RyanDpiSettings.Load();
+            LocalizationService.SetLanguage(_settings.Language);
             App.ApplyTheme(_settings.IsDarkTheme);
             UpdateThemeIcon();
-
-            TxtAboutVersion.Text = $"RyanDPI v{AutoUpdateService.GetCurrentVersionString()} — System-Wide Zero-Speed-Loss DPI Bypass";
 
             ListExcludes.ItemsSource = _excludedApps;
             ListSelfTestResults.ItemsSource = _selfTestItems;
 
             LoadSettingsIntoUI();
+            ApplyLanguage();
 
             TxtLogs.Text = LogService.GetRecentLogsText();
             LogService.LineLogged += OnLogLineReceived;
@@ -94,10 +95,144 @@ namespace RyanDPI
             });
         }
 
-        #region Window & Navigation Controls
+        #region Window, Language & Navigation Controls
 
         private void BtnMinimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
         private void BtnClose_Click(object sender, RoutedEventArgs e) => Close();
+
+        private void BtnLanguageToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _settings.Language = LocalizationService.IsTurkish
+                ? LocalizationService.English
+                : LocalizationService.Turkish;
+            _settings.Save();
+            LocalizationService.SetLanguage(_settings.Language);
+            ApplyLanguage();
+        }
+
+        public void ApplyLanguage()
+        {
+            _isUpdatingLanguage = true;
+            try
+            {
+                // Title bar & Navigation
+                TxtBrandBadge.Text = LocalizationService.T("Badge_AllAppsSpeed");
+                BtnLanguageToggle.Content = LocalizationService.T("LangButton_Text");
+                BtnLanguageToggle.ToolTip = LocalizationService.T("LangButton_Tooltip");
+                BtnThemeToggle.ToolTip = LocalizationService.T("ThemeButton_Tooltip");
+                BtnMinimize.ToolTip = LocalizationService.T("Minimize_Tooltip");
+                BtnClose.ToolTip = LocalizationService.T("Close_Tooltip");
+                BtnRefreshStatus.ToolTip = LocalizationService.T("Refresh_Tooltip");
+
+                NavHome.Content = LocalizationService.T("Nav_Home");
+                NavSettings.Content = LocalizationService.T("Nav_Settings");
+                NavTools.Content = LocalizationService.T("Nav_Tools");
+
+                // Health Strip headers
+                TxtPillEngineTitle.Text = LocalizationService.T("Pill_EngineTitle");
+                TxtPillRouterTitle.Text = LocalizationService.T("Pill_RouterTitle");
+                TxtPillDnsTitle.Text = LocalizationService.T("Pill_DnsTitle");
+
+                // Home controls
+                BtnRestartEngine.Content = LocalizationService.T("Btn_Reinstall");
+                BtnQuickUninstall.Content = LocalizationService.T("Btn_Uninstall");
+                BtnRebootNow.Content = LocalizationService.T("Btn_RestartPc");
+
+                // Self-Test card
+                TxtSelfTestTitle.Text = LocalizationService.T("SelfTest_Title");
+                TxtSelfTestSubtitle.Text = LocalizationService.T("SelfTest_Subtitle");
+                if (!_isBusy)
+                {
+                    BtnRunSelfTest.Content = LocalizationService.T("SelfTest_Run");
+                }
+                TxtSelfTestPlaceholder.Text = LocalizationService.T("SelfTest_Placeholder");
+
+                // Settings page
+                TxtProfileSectionTitle.Text = LocalizationService.T("Settings_ProfileTitle");
+                ItemProfileAuto.Content = LocalizationService.T("Profile_AutoUniversal");
+                ItemProfileClassic.Content = LocalizationService.T("Profile_Classic");
+                ItemProfileStrict.Content = LocalizationService.T("Profile_StrictIsp");
+                ItemProfileCustom.Content = LocalizationService.T("Profile_Custom");
+                RefreshComboSelectionDisplay(CmbProfile);
+                TxtCustomArgsLabel.Text = LocalizationService.T("Settings_CustomArgsLabel");
+
+                TxtDnsSectionTitle.Text = LocalizationService.T("Settings_DnsTitle");
+                ItemDnsEncrypted.Content = LocalizationService.T("Dns_Encrypted");
+                ItemDnsNativeDoH.Content = LocalizationService.T("Dns_NativeDoH");
+                ItemDnsKeepSystem.Content = LocalizationService.T("Dns_KeepSystem");
+                RefreshComboSelectionDisplay(CmbDnsMode);
+
+                TxtNetworkSectionTitle.Text = LocalizationService.T("Settings_NetworkTitle");
+                TxtBypassLanTitle.Text = LocalizationService.T("Settings_BypassLanTitle");
+                TxtBypassLanDesc.Text = LocalizationService.T("Settings_BypassLanDesc");
+                TxtTunnelUdpTitle.Text = LocalizationService.T("Settings_TunnelUdpTitle");
+                TxtTunnelUdpDesc.Text = LocalizationService.T("Settings_TunnelUdpDesc");
+                TxtAutoUpdateTitle.Text = LocalizationService.T("Settings_AutoUpdateTitle");
+                TxtAutoUpdateDesc.Text = LocalizationService.T("Settings_AutoUpdateDesc");
+
+                TxtExcludesSectionTitle.Text = LocalizationService.T("Settings_ExcludesTitle");
+                TxtExcludesDesc.Text = LocalizationService.T("Settings_ExcludesDesc");
+                TxtExcludeInput.ToolTip = LocalizationService.T("Settings_ExcludeTooltip");
+                BtnAddExclude.Content = LocalizationService.T("Btn_Add");
+                BtnBrowseExclude.Content = LocalizationService.T("Btn_Browse");
+                TxtNoExcludes.Text = LocalizationService.T("Settings_NoExcludes");
+                if (!_isBusy)
+                {
+                    BtnSaveApplySettings.Content = LocalizationService.T("Btn_SaveApply");
+                }
+
+                // Tools & Logs page
+                TxtToolsSectionTitle.Text = LocalizationService.T("Tools_Title");
+                BtnResetDns.Content = LocalizationService.T("Btn_ResetDns");
+                BtnOpenLogs.Content = LocalizationService.T("Btn_OpenLogs");
+                BtnToolsUninstall.Content = LocalizationService.T("Btn_UninstallFull");
+                TxtLogsSectionTitle.Text = LocalizationService.T("Logs_Title");
+                BtnCopyLogs.Content = LocalizationService.T("Btn_Copy");
+                BtnClearLogs.Content = LocalizationService.T("Btn_Clear");
+                TxtAboutVersion.Text = LocalizationService.Tf("About_TitleFmt", AutoUpdateService.GetCurrentVersionString());
+                TxtAboutSubtitle.Text = LocalizationService.T("About_Subtitle");
+                if (!_isBusy)
+                {
+                    BtnCheckUpdates.Content = LocalizationService.T("Btn_CheckUpdates");
+                }
+
+                UpdateProfileDescription();
+                UpdateDnsDescription();
+
+                if (_currentStatus != null)
+                {
+                    RenderStatus(_currentStatus);
+                }
+                else
+                {
+                    TxtStatusHeadline.Text = LocalizationService.T("Status_CheckingHeadline");
+                    TxtStatusSubtitle.Text = LocalizationService.T("Status_CheckingSubtitle");
+                    TxtEngineState.Text = LocalizationService.T("State_Checking");
+                    TxtRouterState.Text = LocalizationService.T("State_Checking");
+                    TxtDnsState.Text = LocalizationService.T("State_Checking");
+                    BtnCleanLegacy.Content = LocalizationService.T("Btn_CleanLegacy");
+                }
+
+                if (_lastSelfTestRaw.Count > 0)
+                {
+                    RenderSelfTestResults(_lastSelfTestRaw);
+                }
+            }
+            finally
+            {
+                _isUpdatingLanguage = false;
+            }
+        }
+
+        private static void RefreshComboSelectionDisplay(ComboBox combo)
+        {
+            var idx = combo.SelectedIndex;
+            if (idx >= 0)
+            {
+                combo.SelectedIndex = -1;
+                combo.SelectedIndex = idx;
+            }
+        }
 
         private void BtnThemeToggle_Click(object sender, RoutedEventArgs e)
         {
@@ -173,12 +308,12 @@ namespace RyanDPI
                 StatusShieldText.Foreground = successBrush;
                 StatusShieldGlow.Color = (Color)FindResource("SuccessColor");
 
-                TxtStatusHeadline.Text = "RyanDPI is Active";
-                TxtStatusSubtitle.Text = "Every app & website is unlocked automatically at full native internet speed.";
+                TxtStatusHeadline.Text = LocalizationService.T("Status_ActiveHeadline");
+                TxtStatusSubtitle.Text = LocalizationService.T("Status_ActiveSubtitle");
 
-                BtnPrimaryAction.Content = "Pause RyanDPI";
+                BtnPrimaryAction.Content = LocalizationService.T("Status_ActiveCta");
                 BtnPrimaryAction.Style = (Style)FindResource("SuccessButtonStyle");
-                TxtActionCaption.Text = "Running in background as a Windows service — stays active automatically after every restart.";
+                TxtActionCaption.Text = LocalizationService.T("Status_ActiveCaption");
                 PanelInstalledActions.Visibility = Visibility.Visible;
             }
             else if (status.IsInstalled)
@@ -189,14 +324,16 @@ namespace RyanDPI
                 StatusShieldText.Foreground = warnBrush;
                 StatusShieldGlow.Color = (Color)FindResource("WarningColor");
 
-                TxtStatusHeadline.Text = status.IsPartiallyRunning ? "RyanDPI Partially Active" : "RyanDPI is Paused";
+                TxtStatusHeadline.Text = status.IsPartiallyRunning
+                    ? LocalizationService.T("Status_PartialHeadline")
+                    : LocalizationService.T("Status_PausedHeadline");
                 TxtStatusSubtitle.Text = status.IsPartiallyRunning
-                    ? "One of the background services is stopped. Click below to start both cleanly."
-                    : "RyanDPI is installed and ready. Click below to re-enable instant access.";
+                    ? LocalizationService.T("Status_PartialSubtitle")
+                    : LocalizationService.T("Status_PausedSubtitle");
 
-                BtnPrimaryAction.Content = "Enable RyanDPI";
+                BtnPrimaryAction.Content = LocalizationService.T("Status_PausedCta");
                 BtnPrimaryAction.Style = (Style)FindResource("PrimaryButtonStyle");
-                TxtActionCaption.Text = "Enables local DPI bypass and system-wide transparent app routing with zero VPN slowdown.";
+                TxtActionCaption.Text = LocalizationService.T("Status_PausedCaption");
                 PanelInstalledActions.Visibility = Visibility.Visible;
             }
             else
@@ -209,46 +346,54 @@ namespace RyanDPI
                 StatusShieldText.Foreground = accentBrush;
                 StatusShieldGlow.Color = (Color)FindResource("AccentCyanColor");
 
-                TxtStatusHeadline.Text = "Ready to Unlock Everything";
+                TxtStatusHeadline.Text = LocalizationService.T("Status_ReadyHeadline");
                 TxtStatusSubtitle.Text = status.HasLegacyServices
-                    ? $"Legacy DPI detected ({string.Join(", ", status.DetectedLegacyServices)}). RyanDPI will replace it cleanly."
-                    : "One-click setup unlocks Discord, Roblox, Roblox Studio & every blocked app/site in Turkey.";
+                    ? LocalizationService.Tf("Status_ReadyLegacySubtitle", string.Join(", ", status.DetectedLegacyServices))
+                    : LocalizationService.T("Status_ReadySubtitle");
 
-                BtnPrimaryAction.Content = "Install & Enable RyanDPI";
+                BtnPrimaryAction.Content = LocalizationService.T("Status_ReadyCta");
                 BtnPrimaryAction.Style = (Style)FindResource("PrimaryButtonStyle");
-                TxtActionCaption.Text = "100% local DPI bypass — no VPN servers, no bandwidth throttling, no app whitelisting needed.";
+                TxtActionCaption.Text = LocalizationService.T("Status_ReadyCaption");
                 PanelInstalledActions.Visibility = Visibility.Collapsed;
             }
 
             // 3 Health Pills
-            SetPill(DotEngine, TxtEngineState, status.EngineState, "Running", "Stopped", "Not Set");
-            SetPill(DotRouter, TxtRouterState, status.RouterState, "All Apps", "Paused", "Not Set");
+            SetPill(DotEngine, TxtEngineState, status.EngineState,
+                LocalizationService.T("State_Running"),
+                LocalizationService.T("State_Stopped"),
+                LocalizationService.T("State_NotSet"));
+            SetPill(DotRouter, TxtRouterState, status.RouterState,
+                LocalizationService.T("State_AllApps"),
+                LocalizationService.T("State_Paused"),
+                LocalizationService.T("State_NotSet"));
 
             if (status.DnsProxyState == ComponentState.Running)
             {
                 DotDns.Fill = successBrush;
-                TxtDnsState.Text = "Encrypted";
+                TxtDnsState.Text = LocalizationService.T("State_Encrypted");
             }
             else if (_settings.DnsMode == DnsProtectionMode.WindowsNativeDoH && status.IsInstalled)
             {
                 DotDns.Fill = successBrush;
-                TxtDnsState.Text = "Native DoH";
+                TxtDnsState.Text = LocalizationService.T("State_NativeDoH");
             }
             else if (status.DnsProxyState == ComponentState.Stopped)
             {
                 DotDns.Fill = warnBrush;
-                TxtDnsState.Text = "Stopped";
+                TxtDnsState.Text = LocalizationService.T("State_Stopped");
             }
             else
             {
                 DotDns.Fill = mutedBrush;
-                TxtDnsState.Text = _settings.DnsMode == DnsProtectionMode.KeepSystemDns ? "Custom" : "Default";
+                TxtDnsState.Text = _settings.DnsMode == DnsProtectionMode.KeepSystemDns
+                    ? LocalizationService.T("State_Custom")
+                    : LocalizationService.T("State_Default");
             }
 
             // Update Tools legacy button label if legacy services exist
             BtnCleanLegacy.Content = status.HasLegacyServices
-                ? $"Clean Legacy DPI ({status.DetectedLegacyServices.Count})"
-                : "Clean Legacy DPI Services";
+                ? LocalizationService.Tf("Btn_CleanLegacyCount", status.DetectedLegacyServices.Count)
+                : LocalizationService.T("Btn_CleanLegacy");
         }
 
         private void SetPill(System.Windows.Shapes.Ellipse dot, TextBlock label, ComponentState state,
@@ -370,14 +515,14 @@ namespace RyanDPI
             SetBusy(true, showProgressCard: true);
             PanelNotice.Visibility = Visibility.Collapsed;
             ProgressInstall.Value = 5;
-            TxtProgressTitle.Text = "Installing RyanDPI...";
-            TxtProgressStep.Text = "Starting...";
-            TxtProgressDetail.Text = "Initializing installation...";
+            TxtProgressTitle.Text = LocalizationService.T("Progress_InstallingTitle");
+            TxtProgressStep.Text = LocalizationService.T("Progress_Starting");
+            TxtProgressDetail.Text = LocalizationService.T("Progress_Initializing");
 
             var progress = new Progress<InstallProgressUpdate>(u =>
             {
                 TxtProgressTitle.Text = u.Title;
-                TxtProgressStep.Text = $"Step {u.StepIndex} / {u.TotalSteps}";
+                TxtProgressStep.Text = LocalizationService.Tf("Progress_StepFmt", u.StepIndex, u.TotalSteps);
                 TxtProgressDetail.Text = u.Detail;
                 ProgressInstall.Value = u.Percent;
             });
@@ -399,8 +544,8 @@ namespace RyanDPI
             if (_isBusy) return;
 
             var confirm = MessageBox.Show(
-                "Completely remove RyanDPI services, firewall rules, and reset DNS back to automatic (DHCP)?",
-                "Uninstall RyanDPI",
+                LocalizationService.T("Confirm_UninstallBody"),
+                LocalizationService.T("Confirm_UninstallTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -408,9 +553,9 @@ namespace RyanDPI
 
             SetBusy(true, showProgressCard: true);
             PanelNotice.Visibility = Visibility.Collapsed;
-            TxtProgressTitle.Text = "Uninstalling RyanDPI";
-            TxtProgressStep.Text = "Cleaning up...";
-            TxtProgressDetail.Text = "Stopping services, removing firewall rules, and restoring automatic DNS...";
+            TxtProgressTitle.Text = LocalizationService.T("Progress_UninstallingTitle");
+            TxtProgressStep.Text = LocalizationService.T("Progress_CleaningUp");
+            TxtProgressDetail.Text = LocalizationService.T("Progress_UninstallingDetail");
             ProgressInstall.Value = 50;
 
             try
@@ -430,8 +575,8 @@ namespace RyanDPI
         private void BtnRebootNow_Click(object sender, RoutedEventArgs e)
         {
             var confirm = MessageBox.Show(
-                "Restart your computer now? Make sure your work is saved.",
-                "Restart PC",
+                LocalizationService.T("Confirm_RebootBody"),
+                LocalizationService.T("Confirm_RebootTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -446,7 +591,7 @@ namespace RyanDPI
             if (_isBusy) return;
 
             SetBusy(true, showProgressCard: false);
-            BtnRunSelfTest.Content = "Testing...";
+            BtnRunSelfTest.Content = LocalizationService.T("SelfTest_Testing");
             TxtSelfTestPlaceholder.Visibility = Visibility.Collapsed;
             _selfTestItems.Clear();
 
@@ -462,7 +607,7 @@ namespace RyanDPI
             }
             finally
             {
-                BtnRunSelfTest.Content = "Run Test";
+                BtnRunSelfTest.Content = LocalizationService.T("SelfTest_Run");
                 SetBusy(false);
             }
         }
@@ -479,7 +624,9 @@ namespace RyanDPI
                 {
                     Name = r.Name,
                     Summary = r.Summary,
-                    LatencyText = r.Passed ? (r.LatencyMs <= 0 ? "<1 ms" : $"{r.LatencyMs} ms") : "Failed",
+                    LatencyText = r.Passed
+                        ? (r.LatencyMs <= 0 ? "<1 ms" : $"{r.LatencyMs} ms")
+                        : LocalizationService.T("SelfTest_Failed"),
                     StatusBrush = r.Passed ? okBrush : failBrush
                 });
             }
@@ -523,6 +670,7 @@ namespace RyanDPI
 
         private void CmbProfile_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (_isUpdatingLanguage) return;
             UpdateProfileDescription();
         }
 
@@ -534,19 +682,16 @@ namespace RyanDPI
             PanelCustomArgs.Visibility = tag == nameof(BypassProfile.Custom) ? Visibility.Visible : Visibility.Collapsed;
             TxtProfileDescription.Text = tag switch
             {
-                nameof(BypassProfile.ClassicByeDpi) =>
-                    "Uses the lightweight zero-retransmit TLS record split strategy (--tlsrec 1+s --mod-http=h,d) with automatic split/disorder fallback and 128 KB full-speed buffers.",
-                nameof(BypassProfile.StrictIsp) =>
-                    "Starts immediately with TLS record fragmentation + TCP disorder + OOB + low-TTL fake packets for aggressive ISPs like Superonline or mobile carriers.",
-                nameof(BypassProfile.Custom) =>
-                    "Enter custom ciadpi.exe desync flags below. High-speed socket flags (-i 127.0.0.1 -p 1080 -c 4096 -b 131072) are prepended automatically.",
-                _ =>
-                    "6-stage adaptive strategy built for all Turkish ISPs (Türk Telekom, Superonline, Vodafone, Kablonet, TurkNet) with 128 KB full-speed buffers and 24-hour per-IP caching."
+                nameof(BypassProfile.ClassicByeDpi) => LocalizationService.T("Profile_Desc_Classic"),
+                nameof(BypassProfile.StrictIsp) => LocalizationService.T("Profile_Desc_Strict"),
+                nameof(BypassProfile.Custom) => LocalizationService.T("Profile_Desc_Custom"),
+                _ => LocalizationService.T("Profile_Desc_Auto")
             };
         }
 
         private void CmbDnsMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (_isUpdatingLanguage) return;
             UpdateDnsDescription();
         }
 
@@ -557,12 +702,9 @@ namespace RyanDPI
 
             TxtDnsDescription.Text = tag switch
             {
-                nameof(DnsProtectionMode.WindowsNativeDoH) =>
-                    "Uses Windows 11 built-in DNS-over-HTTPS with Google (8.8.8.8) and Quad9 (9.9.9.9) without running a local DNS proxy.",
-                nameof(DnsProtectionMode.KeepSystemDns) =>
-                    "Leaves your network adapter DNS untouched. Choose this if you already manage your own encrypted DNS (e.g. NextDNS, AdGuard, or router DoH).",
-                _ =>
-                    "Runs local encrypted DNS (DNSCrypt-Proxy) via Cloudflare, Google & Quad9 (fastest-first) with an 8,192-entry cache. Defeats ISP DNS poisoning on both Windows 10 and 11."
+                nameof(DnsProtectionMode.WindowsNativeDoH) => LocalizationService.T("Dns_Desc_NativeDoH"),
+                nameof(DnsProtectionMode.KeepSystemDns) => LocalizationService.T("Dns_Desc_KeepSystem"),
+                _ => LocalizationService.T("Dns_Desc_Encrypted")
             };
         }
 
@@ -592,8 +734,8 @@ namespace RyanDPI
         {
             var dlg = new OpenFileDialog
             {
-                Title = "Select an application to exclude from RyanDPI",
-                Filter = "Executable files (*.exe)|*.exe|All files (*.*)|*.*"
+                Title = LocalizationService.T("BrowseExclude_Title"),
+                Filter = LocalizationService.T("BrowseExclude_Filter")
             };
 
             if (dlg.ShowDialog() == true)
@@ -645,7 +787,7 @@ namespace RyanDPI
             _settings.ExcludedApps = _excludedApps.ToList();
 
             SetBusy(true, showProgressCard: false);
-            BtnSaveApplySettings.Content = "Applying...";
+            BtnSaveApplySettings.Content = LocalizationService.T("Btn_Applying");
             try
             {
                 var res = await _engine.ApplySettingsAndRestartAsync(_settings);
@@ -654,7 +796,7 @@ namespace RyanDPI
             }
             finally
             {
-                BtnSaveApplySettings.Content = "Save & Apply Settings";
+                BtnSaveApplySettings.Content = LocalizationService.T("Btn_SaveApply");
                 SetBusy(false);
                 await RefreshStatusAsync();
             }
@@ -669,8 +811,8 @@ namespace RyanDPI
             if (_isBusy) return;
 
             var confirm = MessageBox.Show(
-                "Reset DNS and DoH settings on all physical network adapters back to Automatic (DHCP) and flush the DNS cache?",
-                "Reset DNS & Flush Cache",
+                LocalizationService.T("Confirm_ResetDnsBody"),
+                LocalizationService.T("Confirm_ResetDnsTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -681,7 +823,7 @@ namespace RyanDPI
             {
                 var ok = await _engine.Dns.ResetDnsToAutomaticAsync(removeDnsCryptService: true);
                 ShowNotice(
-                    ok ? "DNS & DoH reset to Automatic (DHCP) and DNS cache flushed." : "DNS reset finished with warnings. Check logs.",
+                    ok ? LocalizationService.T("Msg_DnsResetOk") : LocalizationService.T("Msg_DnsResetWarn"),
                     ok);
                 NavHome.IsChecked = true;
             }
@@ -697,8 +839,8 @@ namespace RyanDPI
             if (_isBusy) return;
 
             var confirm = MessageBox.Show(
-                "Stop and remove any conflicting third-party DPI or tunneling services (ByeDPI, GoodbyeDPI, Zapret, WinDivert, WireSock) and Discord drover leftovers?\n\nYour active RyanDPI installation will not be affected.",
-                "Clean Legacy DPI Services",
+                LocalizationService.T("Confirm_CleanLegacyBody"),
+                LocalizationService.T("Confirm_CleanLegacyTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -776,9 +918,9 @@ namespace RyanDPI
                 _currentStatus.DetectedLegacyServices.Contains("RyanDPI", StringComparer.OrdinalIgnoreCase)))
             {
                 SetBusy(true, showProgressCard: true);
-                TxtProgressTitle.Text = $"Finishing update to {versionLabel}...";
-                TxtProgressStep.Text = "Syncing engine";
-                TxtProgressDetail.Text = "Updating background RyanDPI engine binaries, config, and firewall rules...";
+                TxtProgressTitle.Text = LocalizationService.Tf("Update_FinishingTitle", versionLabel);
+                TxtProgressStep.Text = LocalizationService.T("Update_SyncingStep");
+                TxtProgressDetail.Text = LocalizationService.T("Update_SyncingDetail");
                 ProgressInstall.Value = 65;
 
                 try
@@ -787,8 +929,8 @@ namespace RyanDPI
                     ProgressInstall.Value = 100;
                     ShowNotice(
                         refreshRes.Success
-                            ? $"RyanDPI automatically updated to {versionLabel} and refreshed background services!"
-                            : $"Updated to {versionLabel}: {refreshRes.Message}",
+                            ? LocalizationService.Tf("Update_UpdatedRefreshed", versionLabel)
+                            : LocalizationService.Tf("Update_UpdatedWarn", versionLabel, refreshRes.Message),
                         refreshRes.Success);
                 }
                 finally
@@ -799,7 +941,7 @@ namespace RyanDPI
             }
             else
             {
-                ShowNotice($"RyanDPI automatically updated to {versionLabel}!", isSuccess: true);
+                ShowNotice(LocalizationService.Tf("Update_UpdatedSimple", versionLabel), isSuccess: true);
             }
         }
 
@@ -811,7 +953,7 @@ namespace RyanDPI
             if (isManualCheck)
             {
                 SetBusy(true, showProgressCard: false);
-                BtnCheckUpdates.Content = "Checking...";
+                BtnCheckUpdates.Content = LocalizationService.T("Btn_Checking");
             }
 
             UpdateCheckResult check;
@@ -824,7 +966,7 @@ namespace RyanDPI
             {
                 if (isManualCheck)
                 {
-                    BtnCheckUpdates.Content = "Check Updates";
+                    BtnCheckUpdates.Content = LocalizationService.T("Btn_CheckUpdates");
                     SetBusy(false);
                 }
                 return;
@@ -837,9 +979,9 @@ namespace RyanDPI
                 LogService.Warn($"Update check skipped: {check.ErrorMessage}");
                 if (isManualCheck)
                 {
-                    BtnCheckUpdates.Content = "Check Updates";
+                    BtnCheckUpdates.Content = LocalizationService.T("Btn_CheckUpdates");
                     SetBusy(false);
-                    ShowNotice($"Could not check for updates: {check.ErrorMessage}", isSuccess: false);
+                    ShowNotice(LocalizationService.Tf("Update_CheckFailed", check.ErrorMessage ?? ""), isSuccess: false);
                     NavHome.IsChecked = true;
                 }
                 return;
@@ -850,9 +992,9 @@ namespace RyanDPI
                 LogService.Info($"RyanDPI v{check.CurrentVersion} is up to date.");
                 if (isManualCheck)
                 {
-                    BtnCheckUpdates.Content = "Check Updates";
+                    BtnCheckUpdates.Content = LocalizationService.T("Btn_CheckUpdates");
                     SetBusy(false);
-                    ShowNotice($"You are on the latest version (RyanDPI v{check.CurrentVersion}).", isSuccess: true);
+                    ShowNotice(LocalizationService.Tf("Update_UpToDate", check.CurrentVersion), isSuccess: true);
                     NavHome.IsChecked = true;
                 }
                 return;
@@ -870,10 +1012,10 @@ namespace RyanDPI
             NavHome.IsChecked = true;
             PanelNotice.Visibility = Visibility.Collapsed;
             SetBusy(true, showProgressCard: true);
-            BtnCheckUpdates.Content = "Updating...";
-            TxtProgressTitle.Text = $"Updating RyanDPI to v{check.LatestVersion}...";
-            TxtProgressStep.Text = "Starting";
-            TxtProgressDetail.Text = $"Found new release v{check.LatestVersion}. Downloading update automatically...";
+            BtnCheckUpdates.Content = LocalizationService.T("Btn_Updating");
+            TxtProgressTitle.Text = LocalizationService.Tf("Update_UpdatingTitle", check.LatestVersion!);
+            TxtProgressStep.Text = LocalizationService.T("Update_StartingStep");
+            TxtProgressDetail.Text = LocalizationService.Tf("Update_StartingDetail", check.LatestVersion!);
             ProgressInstall.Value = 5;
 
             var progress = new Progress<UpdateProgress>(u =>
@@ -890,14 +1032,14 @@ namespace RyanDPI
                 if (!ok || string.IsNullOrWhiteSpace(filePath))
                 {
                     LogService.Error($"Auto-update download failed: {err}");
-                    ShowNotice($"Automatic update to v{check.LatestVersion} failed: {err}", isSuccess: false);
+                    ShowNotice(LocalizationService.Tf("Update_Failed", check.LatestVersion!, err ?? ""), isSuccess: false);
                     return;
                 }
 
                 var launched = _updater.LaunchUpdaterAndPrepareExit(check, filePath);
                 if (!launched)
                 {
-                    ShowNotice($"Downloaded v{check.LatestVersion}, but could not launch the installer automatically.", isSuccess: false);
+                    ShowNotice(LocalizationService.Tf("Update_LaunchFailed", check.LatestVersion!), isSuccess: false);
                     return;
                 }
 
@@ -912,7 +1054,7 @@ namespace RyanDPI
             {
                 if (!ct.IsCancellationRequested)
                 {
-                    BtnCheckUpdates.Content = "Check Updates";
+                    BtnCheckUpdates.Content = LocalizationService.T("Btn_CheckUpdates");
                     SetBusy(false);
                 }
             }

@@ -396,9 +396,9 @@ namespace RyanDPI.Services
 
                 progress?.Report(new UpdateProgress
                 {
-                    Title = $"Updating to RyanDPI v{update.LatestVersion}...",
-                    StepLabel = "Downloading",
-                    Detail = $"Downloading {safeName} from GitHub Releases...",
+                    Title = LocalizationService.Tf("Update_UpdatingTitle", update.LatestVersion!),
+                    StepLabel = LocalizationService.T("Update_DownloadingStep"),
+                    Detail = LocalizationService.Tf("Update_DownloadingFile", safeName),
                     Percent = 5
                 });
 
@@ -441,9 +441,9 @@ namespace RyanDPI.Services
                             var mbTotal = totalBytes > 0 ? $" / {totalBytes / (1024.0 * 1024.0):F1} MB" : "";
                             progress?.Report(new UpdateProgress
                             {
-                                Title = $"Updating to RyanDPI v{update.LatestVersion}...",
-                                StepLabel = totalBytes > 0 ? $"{(int)(receivedBytes * 100 / totalBytes)}%" : "Downloading",
-                                Detail = $"Downloading {safeName} ({mbDown:F1}{mbTotal})...",
+                                Title = LocalizationService.Tf("Update_UpdatingTitle", update.LatestVersion!),
+                                StepLabel = totalBytes > 0 ? $"{(int)(receivedBytes * 100 / totalBytes)}%" : LocalizationService.T("Update_DownloadingStep"),
+                                Detail = LocalizationService.Tf("Update_DownloadingPct", safeName, mbDown, mbTotal),
                                 Percent = pct
                             });
                         }
@@ -452,9 +452,9 @@ namespace RyanDPI.Services
 
                 progress?.Report(new UpdateProgress
                 {
-                    Title = $"Updating to RyanDPI v{update.LatestVersion}...",
-                    StepLabel = "Verifying",
-                    Detail = "Verifying download integrity (size, format & SHA-256)...",
+                    Title = LocalizationService.Tf("Update_UpdatingTitle", update.LatestVersion!),
+                    StepLabel = LocalizationService.T("Update_VerifyingStep"),
+                    Detail = LocalizationService.T("Update_VerifyingDetail"),
                     Percent = 94
                 });
 
@@ -512,9 +512,9 @@ namespace RyanDPI.Services
 
                 progress?.Report(new UpdateProgress
                 {
-                    Title = $"Installing RyanDPI v{update.LatestVersion}...",
-                    StepLabel = "Restarting",
-                    Detail = "Launching silent update and restarting RyanDPI...",
+                    Title = LocalizationService.Tf("Update_InstallingTitle", update.LatestVersion!),
+                    StepLabel = LocalizationService.T("Update_RestartingStep"),
+                    Detail = LocalizationService.T("Update_RestartingDetail"),
                     Percent = 100
                 });
 

@@ -79,16 +79,29 @@
                             Padding="8,2.5"
                             Margin="10,0,0,0"
                             VerticalAlignment="Center">
-                        <TextBlock Text="ALL APPS • FULL SPEED"
+                        <TextBlock x:Name="TxtBrandBadge"
+                                   Text="ALL APPS • FULL SPEED"
                                    FontSize="9.5"
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource AccentCyanBrush}"/>
                     </Border>
                 </StackPanel>
 
-                <!-- Theme & Window Controls -->
+                <!-- Language, Theme & Window Controls -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                             WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="BtnLanguageToggle"
+                            Content="TR"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Height="28"
+                            MinWidth="38"
+                            Padding="10,0"
+                            FontSize="11"
+                            FontWeight="Bold"
+                            Foreground="{DynamicResource AccentCyanBrush}"
+                            ToolTip="Switch language to Turkish (Türkçe'ye geç)"
+                            Click="BtnLanguageToggle_Click"
+                            Margin="0,0,6,0"/>
                     <Button x:Name="BtnThemeToggle"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Toggle Dark / Light Theme"
@@ -109,7 +122,8 @@
                                   Stretch="Uniform"/>
                         </Grid>
                     </Button>
-                    <Button Style="{StaticResource IconButtonStyle}"
+                    <Button x:Name="BtnMinimize"
+                            Style="{StaticResource IconButtonStyle}"
                             ToolTip="Minimize"
                             Click="BtnMinimize_Click"
                             Margin="0,0,4,0">
@@ -120,7 +134,8 @@
                               StrokeEndLineCap="Round"
                               Width="12" Height="12" Stretch="Uniform"/>
                     </Button>
-                    <Button Style="{StaticResource CloseIconButtonStyle}"
+                    <Button x:Name="BtnClose"
+                            Style="{StaticResource CloseIconButtonStyle}"
                             ToolTip="Close"
                             Click="BtnClose_Click">
                         <Path Data="M6 6l12 12M18 6L6 18"
@@ -239,7 +254,7 @@
                                         Padding="10,9"
                                         Margin="0,0,6,0">
                                     <StackPanel>
-                                        <TextBlock Text="DPI ENGINE" FontSize="9.5" FontWeight="Bold"
+                                        <TextBlock x:Name="TxtPillEngineTitle" Text="DPI ENGINE" FontSize="9.5" FontWeight="Bold"
                                                    Foreground="{DynamicResource TextMutedBrush}"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                             <Ellipse x:Name="DotEngine" Width="8" Height="8" Fill="{DynamicResource TextMutedBrush}"
@@ -257,7 +272,7 @@
                                         Padding="10,9"
                                         Margin="3,0,3,0">
                                     <StackPanel>
-                                        <TextBlock Text="APP ROUTER" FontSize="9.5" FontWeight="Bold"
+                                        <TextBlock x:Name="TxtPillRouterTitle" Text="APP ROUTER" FontSize="9.5" FontWeight="Bold"
                                                    Foreground="{DynamicResource TextMutedBrush}"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                             <Ellipse x:Name="DotRouter" Width="8" Height="8" Fill="{DynamicResource TextMutedBrush}"
@@ -275,7 +290,7 @@
                                         Padding="10,9"
                                         Margin="6,0,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="SECURE DNS" FontSize="9.5" FontWeight="Bold"
+                                        <TextBlock x:Name="TxtPillDnsTitle" Text="SECURE DNS" FontSize="9.5" FontWeight="Bold"
                                                    Foreground="{DynamicResource TextMutedBrush}"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                             <Ellipse x:Name="DotDns" Width="8" Height="8" Fill="{DynamicResource TextMutedBrush}"
@@ -408,12 +423,14 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
-                                    <TextBlock Text="Unblock &amp; Speed Self-Test"
+                                    <TextBlock x:Name="TxtSelfTestTitle"
+                                               Text="Unblock &amp; Speed Self-Test"
                                                FontFamily="{StaticResource FontBold}"
                                                FontSize="14"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Verify Discord, Roblox App, Roblox Studio, Wattpad &amp; live ping right now."
+                                    <TextBlock x:Name="TxtSelfTestSubtitle"
+                                               Text="Verify Discord, Roblox App, Roblox Studio, Wattpad &amp; live ping right now."
                                                FontSize="11.5"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
@@ -486,7 +503,8 @@
                         <!-- Bypass Profile -->
                         <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                             <StackPanel>
-                                <TextBlock Text="DPI Bypass Profile"
+                                <TextBlock x:Name="TxtProfileSectionTitle"
+                                           Text="DPI Bypass Profile"
                                            FontFamily="{StaticResource FontBold}"
                                            FontSize="14"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -495,10 +513,10 @@
                                 <ComboBox x:Name="CmbProfile"
                                           Style="{StaticResource ModernComboBoxStyle}"
                                           SelectionChanged="CmbProfile_SelectionChanged">
-                                    <ComboBoxItem Content="Auto Universal (Recommended — All Turkish ISPs)" Tag="AutoUniversal"/>
-                                    <ComboBoxItem Content="Classic Mode (Lightweight Split + Disorder)" Tag="ClassicByeDpi"/>
-                                    <ComboBoxItem Content="Strict ISP (Superonline / Mobile / Aggressive DPI)" Tag="StrictIsp"/>
-                                    <ComboBoxItem Content="Custom Arguments" Tag="Custom"/>
+                                    <ComboBoxItem x:Name="ItemProfileAuto" Content="Auto Universal (Recommended — All Turkish ISPs)" Tag="AutoUniversal"/>
+                                    <ComboBoxItem x:Name="ItemProfileClassic" Content="Classic Mode (Lightweight TLS Record Split)" Tag="ClassicByeDpi"/>
+                                    <ComboBoxItem x:Name="ItemProfileStrict" Content="Strict ISP (Superonline / Mobile / Aggressive DPI)" Tag="StrictIsp"/>
+                                    <ComboBoxItem x:Name="ItemProfileCustom" Content="Custom Arguments" Tag="Custom"/>
                                 </ComboBox>
 
                                 <TextBlock x:Name="TxtProfileDescription"
@@ -509,7 +527,8 @@
                                            Margin="0,8,0,0"/>
 
                                 <StackPanel x:Name="PanelCustomArgs" Visibility="Collapsed" Margin="0,10,0,0">
-                                    <TextBlock Text="Custom ciadpi.exe strategy arguments:"
+                                    <TextBlock x:Name="TxtCustomArgsLabel"
+                                               Text="Custom ciadpi.exe strategy arguments:"
                                                FontSize="11.5"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                Margin="0,0,0,5"/>
@@ -528,7 +547,8 @@
                         <!-- DNS Protection -->
                         <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                             <StackPanel>
-                                <TextBlock Text="DNS Protection"
+                                <TextBlock x:Name="TxtDnsSectionTitle"
+                                           Text="DNS Protection"
                                            FontFamily="{StaticResource FontBold}"
                                            FontSize="14"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -537,9 +557,9 @@
                                 <ComboBox x:Name="CmbDnsMode"
                                           Style="{StaticResource ModernComboBoxStyle}"
                                           SelectionChanged="CmbDnsMode_SelectionChanged">
-                                    <ComboBoxItem Content="Encrypted DNS — DNSCrypt-Proxy (Recommended)" Tag="EncryptedDnsProxy"/>
-                                    <ComboBoxItem Content="Windows Native DoH (Google + Quad9)" Tag="WindowsNativeDoH"/>
-                                    <ComboBoxItem Content="Keep My Existing DNS Settings" Tag="KeepSystemDns"/>
+                                    <ComboBoxItem x:Name="ItemDnsEncrypted" Content="Encrypted DNS — DNSCrypt-Proxy (Recommended)" Tag="EncryptedDnsProxy"/>
+                                    <ComboBoxItem x:Name="ItemDnsNativeDoH" Content="Windows Native DoH (Google + Quad9)" Tag="WindowsNativeDoH"/>
+                                    <ComboBoxItem x:Name="ItemDnsKeepSystem" Content="Keep My Existing DNS Settings" Tag="KeepSystemDns"/>
                                 </ComboBox>
 
                                 <TextBlock x:Name="TxtDnsDescription"
@@ -554,7 +574,8 @@
                         <!-- Speed & Network Switches -->
                         <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                             <StackPanel>
-                                <TextBlock Text="Network &amp; Speed Options"
+                                <TextBlock x:Name="TxtNetworkSectionTitle"
+                                           Text="Network &amp; Speed Options"
                                            FontFamily="{StaticResource FontBold}"
                                            FontSize="14"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -566,9 +587,9 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                        <TextBlock Text="Bypass LAN &amp; Localhost" FontSize="13" FontWeight="SemiBold"
+                                        <TextBlock x:Name="TxtBypassLanTitle" Text="Bypass LAN &amp; Localhost" FontSize="13" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Keep local devices, routers, and localhost dev servers completely direct."
+                                        <TextBlock x:Name="TxtBypassLanDesc" Text="Keep local devices, routers, and localhost dev servers completely direct."
                                                    FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" x:Name="ChkBypassLan" Style="{StaticResource ToggleSwitchStyle}"
@@ -581,9 +602,9 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                        <TextBlock Text="Also Tunnel UDP (Voice / QUIC)" FontSize="13" FontWeight="SemiBold"
+                                        <TextBlock x:Name="TxtTunnelUdpTitle" Text="Also Tunnel UDP (Voice / QUIC)" FontSize="13" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Keep OFF for 0ms native gaming ping. Turn ON only if your ISP blocks Discord voice or QUIC."
+                                        <TextBlock x:Name="TxtTunnelUdpDesc" Text="Keep OFF for 0ms native gaming ping. Turn ON only if your ISP blocks Discord voice or QUIC."
                                                    FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" x:Name="ChkTunnelUdp" Style="{StaticResource ToggleSwitchStyle}"
@@ -596,9 +617,9 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                        <TextBlock Text="Auto-Update on Startup" FontSize="13" FontWeight="SemiBold"
+                                        <TextBlock x:Name="TxtAutoUpdateTitle" Text="Auto-Update on Startup" FontSize="13" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Automatically download, verify, and install new RyanDPI releases when the app opens."
+                                        <TextBlock x:Name="TxtAutoUpdateDesc" Text="Automatically download, verify, and install new RyanDPI releases when the app opens."
                                                    FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" x:Name="ChkAutoUpdate" Style="{StaticResource ToggleSwitchStyle}"
@@ -610,11 +631,13 @@
                         <!-- Excluded Apps -->
                         <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="Excluded Apps (Optional)"
+                                <TextBlock x:Name="TxtExcludesSectionTitle"
+                                           Text="Excluded Apps (Optional)"
                                            FontFamily="{StaticResource FontBold}"
                                            FontSize="14"
                                            Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                <TextBlock Text="RyanDPI unlocks every app on Windows by default. Only add apps here if you want them to skip RyanDPI. Engine and DNS processes are always excluded automatically."
+                                <TextBlock x:Name="TxtExcludesDesc"
+                                           Text="RyanDPI unlocks every app on Windows by default. Only add apps here if you want them to skip RyanDPI. Engine and DNS processes are always excluded automatically."
                                            FontSize="11.5"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"
@@ -633,11 +656,11 @@
                                              Height="36"
                                              KeyDown="TxtExcludeInput_KeyDown"
                                              ToolTip="Enter an executable name (e.g. game.exe)"/>
-                                    <Button Grid.Column="2" Content="Add"
+                                    <Button Grid.Column="2" x:Name="BtnAddExclude" Content="Add"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             Height="36" Padding="14,0"
                                             Click="BtnAddExclude_Click"/>
-                                    <Button Grid.Column="4" Content="Browse..."
+                                    <Button Grid.Column="4" x:Name="BtnBrowseExclude" Content="Browse..."
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             Height="36" Padding="12,0"
                                             Click="BtnBrowseExclude_Click"/>
@@ -706,7 +729,8 @@
                 <!-- Quick System Maintenance Actions -->
                 <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                     <StackPanel>
-                        <TextBlock Text="System Tools"
+                        <TextBlock x:Name="TxtToolsSectionTitle"
+                                   Text="System Tools"
                                    FontFamily="{StaticResource FontBold}"
                                    FontSize="14"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
@@ -723,7 +747,8 @@
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Margin="5,0,0,8"
                                     Click="BtnCleanLegacy_Click"/>
-                            <Button Content="Open Logs Folder"
+                            <Button x:Name="BtnOpenLogs"
+                                    Content="Open Logs Folder"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Margin="0,0,5,0"
                                     Click="BtnOpenLogs_Click"/>
@@ -749,19 +774,22 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Live Activity Log"
+                            <TextBlock Grid.Column="0" x:Name="TxtLogsSectionTitle"
+                                       Text="Live Activity Log"
                                        FontFamily="{StaticResource FontBold}"
                                        FontSize="14"
                                        Margin="0,0,10,0"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        VerticalAlignment="Center"/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="Copy"
+                                <Button x:Name="BtnCopyLogs"
+                                        Content="Copy"
                                         Style="{StaticResource SecondaryButtonStyle}"
                                         Height="28" Padding="12,0" FontSize="11.5"
                                         Margin="0,0,6,0"
                                         Click="BtnCopyLogs_Click"/>
-                                <Button Content="Clear"
+                                <Button x:Name="BtnClearLogs"
+                                        Content="Clear"
                                         Style="{StaticResource SecondaryButtonStyle}"
                                         Height="28" Padding="12,0" FontSize="11.5"
                                         Click="BtnClearLogs_Click"/>
@@ -797,12 +825,13 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,12,0">
                             <TextBlock x:Name="TxtAboutVersion"
-                                       Text="RyanDPI v2.2.0 — System-Wide Zero-Speed-Loss DPI Bypass"
+                                       Text="RyanDPI v2.3.0 — System-Wide Zero-Speed-Loss DPI Bypass"
                                        FontFamily="{StaticResource FontBold}"
                                        FontSize="12"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
-                            <TextBlock Text="100% local DPI desynchronization (no remote VPN servers). Built with ByeDPI, ProxiFyre &amp; DNSCrypt-Proxy."
+                            <TextBlock x:Name="TxtAboutSubtitle"
+                                       Text="100% local DPI desynchronization (no remote VPN servers). Built with ByeDPI, ProxiFyre &amp; DNSCrypt-Proxy."
                                        FontSize="11"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"

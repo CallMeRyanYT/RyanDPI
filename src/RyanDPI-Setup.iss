@@ -1,22 +1,31 @@
-; RyanDPI Windows Installer Script (English-Only)
+; RyanDPI Windows Installer Script (English & Turkish)
 ; Requires Inno Setup 6
 
 #define MyAppName "RyanDPI"
-#define MyAppVersion "2.2.0"
+#define MyAppVersion "2.3.0"
 #define MyAppPublisher "RyanDPI"
 #define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
 #define MyAppExeName "RyanDPI.exe"
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
 
 [CustomMessages]
-english.WelcomeLabel2=This wizard will install [name/ver] on your computer.%n%n[name] unlocks all blocked apps and websites in Turkey (including Roblox Studio, Roblox, Discord, and all browsers) with zero speed loss.%n%nClick Next to continue.
+english.WelcomeLabel2=This wizard will install [name/ver] on your computer.%n%n[name] unlocks all blocked apps and websites in Turkey (including Roblox Studio, Roblox Player, Discord, and all browsers) with zero speed loss.%n%nClick Next to continue.
 english.LaunchAfterInstall=Launch RyanDPI now
 english.CreateDesktopShortcut=Create a desktop shortcut
 english.UninstallProgress=Stopping RyanDPI services and restoring network settings...
+english.DotNetMissing=RyanDPI requires Microsoft .NET 8.0 Desktop Runtime (x64), which was not detected on this PC.%n%nWould you like to open Microsoft's official download page now? (You can still continue installation afterwards.)
+
+turkish.WelcomeLabel2=Bu sihirbaz bilgisayarınıza [name/ver] uygulamasını kuracaktır.%n%n[name], Türkiye'de engelli tüm uygulama ve web sitelerini (Roblox Studio, Roblox Uygulaması, Discord ve tüm tarayıcılar dahil) hız kaybı olmadan açar.%n%nDevam etmek için İleri'ye tıklayın.
+turkish.LaunchAfterInstall=RyanDPI'yı şimdi başlat
+turkish.CreateDesktopShortcut=Masaüstü kısayolu oluştur
+turkish.UninstallProgress=RyanDPI hizmetleri durduruluyor ve ağ ayarları geri yükleniyor...
+turkish.DotNetMissing=RyanDPI için Microsoft .NET 8.0 Desktop Runtime (x64) gereklidir ancak bu bilgisayarda bulunamadı.%n%nMicrosoft'un resmi indirme sayfasını şimdi açmak ister misiniz? (Sonrasında kuruluma devam edebilirsiniz.)
 
 [Setup]
+ShowLanguageDialog=auto
 AppId={{8D4F62C9-1A7B-4C94-9E35-72A8B1F4209E}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -106,10 +115,7 @@ begin
   Result := True;
   if (not WizardSilent) and (not IsDotNet8DesktopInstalled) then
   begin
-    if MsgBox(
-      'RyanDPI requires Microsoft .NET 8.0 Desktop Runtime (x64), which was not detected on this PC.' + #13#10 + #13#10 +
-      'Would you like to open Microsoft''s official download page now? (You can still continue installation afterwards.)',
-      mbConfirmation, MB_YESNO) = IDYES then
+    if MsgBox(CustomMessage('DotNetMissing'), mbConfirmation, MB_YESNO) = IDYES then
     begin
       ShellExec('open', 'https://dotnet.microsoft.com/en-us/download/dotnet/8.0', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
     end;

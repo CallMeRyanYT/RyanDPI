@@ -112,8 +112,8 @@ namespace RyanDPI.Services
                 {
                     StepIndex = 1,
                     TotalSteps = totalSteps,
-                    Title = "Preparing system",
-                    Detail = "Stopping and removing any conflicting legacy DPI or VPN services..."
+                    Title = LocalizationService.T("Step1_Title"),
+                    Detail = LocalizationService.T("Step1_Detail")
                 });
                 await CleanupLegacyServicesAsync(includeCurrentRyanDpi: true);
 
@@ -122,8 +122,8 @@ namespace RyanDPI.Services
                 {
                     StepIndex = 2,
                     TotalSteps = totalSteps,
-                    Title = "Checking prerequisites",
-                    Detail = "Verifying Windows Packet Filter driver (NDISRD) and VC++ Runtime..."
+                    Title = LocalizationService.T("Step2_Title"),
+                    Detail = LocalizationService.T("Step2_Detail")
                 });
                 var (prereqOk, ndisNeedsReboot) = await EnsurePrerequisitesAsync();
                 if (!prereqOk)
@@ -131,7 +131,7 @@ namespace RyanDPI.Services
                     return new OperationResult
                     {
                         Success = false,
-                        Message = "Failed to install the Windows Packet Filter driver (NDISRD). Check the Logs tab for details."
+                        Message = LocalizationService.T("Msg_NdisFailed")
                     };
                 }
 
@@ -140,8 +140,8 @@ namespace RyanDPI.Services
                 {
                     StepIndex = 3,
                     TotalSteps = totalSteps,
-                    Title = "Deploying RyanDPI engine",
-                    Detail = "Installing system-wide router, full-speed engine, and protected ACL security..."
+                    Title = LocalizationService.T("Step3_Title"),
+                    Detail = LocalizationService.T("Step3_Detail")
                 });
                 var stageOk = await StageEngineAndConfigAsync(settings);
                 if (!stageOk)
@@ -149,7 +149,7 @@ namespace RyanDPI.Services
                     return new OperationResult
                     {
                         Success = false,
-                        Message = "Failed to deploy RyanDPI engine files. Make sure no antivirus quarantined the files."
+                        Message = LocalizationService.T("Msg_StageFailed")
                     };
                 }
 
@@ -158,8 +158,8 @@ namespace RyanDPI.Services
                 {
                     StepIndex = 4,
                     TotalSteps = totalSteps,
-                    Title = "Configuring Encrypted DNS & Firewall",
-                    Detail = "Eliminating ISP DNS poisoning and adding Windows Firewall allow rules..."
+                    Title = LocalizationService.T("Step4_Title"),
+                    Detail = LocalizationService.T("Step4_Detail")
                 });
                 var bundledDnsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "dnscrypt-proxy");
                 var (dnsOk, dnsSummary) = await _dnsService.ApplyDnsModeAsync(settings.DnsMode, bundledDnsDir);
@@ -172,8 +172,8 @@ namespace RyanDPI.Services
                 {
                     StepIndex = 5,
                     TotalSteps = totalSteps,
-                    Title = "Starting RyanDPI",
-                    Detail = "Launching local DPI desync engine and system-wide transparent router..."
+                    Title = LocalizationService.T("Step5_Title"),
+                    Detail = LocalizationService.T("Step5_Detail")
                 });
 
                 var engineStarted = await InstallAndStartEngineServiceAsync(settings);
@@ -182,7 +182,7 @@ namespace RyanDPI.Services
                     return new OperationResult
                     {
                         Success = false,
-                        Message = "RyanDPI engine service could not start on 127.0.0.1:1080. Check if another app is using port 1080 or check the Logs tab."
+                        Message = LocalizationService.T("Msg_EngineStartFailed")
                     };
                 }
 
@@ -196,14 +196,14 @@ namespace RyanDPI.Services
                         {
                             Success = true,
                             RequiresReboot = true,
-                            Message = "RyanDPI is installed! A quick PC restart is needed so Windows can finish loading the new Packet Filter driver."
+                            Message = LocalizationService.T("Msg_RebootNeeded")
                         };
                     }
 
                     return new OperationResult
                     {
                         Success = false,
-                        Message = "RyanDPI router service (ProxiFyreService) failed to start. Try restarting your PC or check the Logs tab."
+                        Message = LocalizationService.T("Msg_RouterStartFailed")
                     };
                 }
 
@@ -212,7 +212,7 @@ namespace RyanDPI.Services
                 {
                     Success = true,
                     RequiresReboot = false,
-                    Message = $"RyanDPI is active! All apps and websites are unlocked at native internet speed. ({dnsSummary})"
+                    Message = LocalizationService.Tf("Msg_InstallSuccess", dnsSummary)
                 };
             }
             catch (Exception ex)
@@ -221,7 +221,7 @@ namespace RyanDPI.Services
                 return new OperationResult
                 {
                     Success = false,
-                    Message = $"Installation error: {ex.Message}"
+                    Message = LocalizationService.Tf("Msg_InstallError", ex.Message)
                 };
             }
         }
@@ -259,7 +259,7 @@ namespace RyanDPI.Services
                         return new OperationResult
                         {
                             Success = false,
-                            Message = "RyanDPI engine failed to start on 127.0.0.1:1080. Check Logs for details."
+                            Message = LocalizationService.T("Msg_StartEngineFail")
                         };
                     }
 
@@ -275,12 +275,12 @@ namespace RyanDPI.Services
                         return new OperationResult
                         {
                             Success = false,
-                            Message = "RyanDPI Router (ProxiFyreService) could not start. Check Logs for details."
+                            Message = LocalizationService.T("Msg_StartRouterFail")
                         };
                     }
 
                     LogService.Info("RyanDPI services are now running.");
-                    return new OperationResult { Success = true, Message = "RyanDPI is now active." };
+                    return new OperationResult { Success = true, Message = LocalizationService.T("Msg_Started") };
                 }
                 catch (Exception ex)
                 {
@@ -301,7 +301,7 @@ namespace RyanDPI.Services
                     ServiceControlHelper.StopService(RouterServiceName);
                     ServiceControlHelper.StopService(EngineServiceName);
                     LogService.Info("RyanDPI paused cleanly. Direct internet routing restored.");
-                    return new OperationResult { Success = true, Message = "RyanDPI paused." };
+                    return new OperationResult { Success = true, Message = LocalizationService.T("Msg_Paused") };
                 }
                 catch (Exception ex)
                 {
@@ -325,7 +325,7 @@ namespace RyanDPI.Services
                     return new OperationResult
                     {
                         Success = true,
-                        Message = "Settings saved! Click 'Install & Enable RyanDPI' on Home to activate them."
+                        Message = LocalizationService.T("Msg_SettingsSavedNotInstalled")
                     };
                 }
 
@@ -356,7 +356,7 @@ namespace RyanDPI.Services
             catch (Exception ex)
             {
                 LogService.Error($"Applying settings failed: {ex.Message}");
-                return new OperationResult { Success = false, Message = $"Failed to apply settings: {ex.Message}" };
+                return new OperationResult { Success = false, Message = LocalizationService.Tf("Msg_SettingsApplyFailed", ex.Message) };
             }
         }
 
@@ -394,7 +394,7 @@ namespace RyanDPI.Services
                     return new OperationResult
                     {
                         Success = false,
-                        Message = "App updated, but refreshing background engine files failed. Click 'Reinstall / Repair'."
+                        Message = LocalizationService.T("Update_BgRefreshFail")
                     };
                 }
 
@@ -418,8 +418,8 @@ namespace RyanDPI.Services
                     {
                         Success = routerOk,
                         Message = routerOk
-                            ? "Background services upgraded cleanly."
-                            : "App updated, but restarting background services failed. Click 'Reinstall / Repair'."
+                            ? LocalizationService.T("Update_BgRefreshOk")
+                            : LocalizationService.T("Update_BgRefreshRestartFail")
                     };
                 }
 
@@ -434,7 +434,7 @@ namespace RyanDPI.Services
                     return await StartAsync(settings);
                 }
 
-                return new OperationResult { Success = true, Message = "Background engine updated (currently paused)." };
+                return new OperationResult { Success = true, Message = LocalizationService.T("Update_BgRefreshPaused") };
             }
             catch (Exception ex)
             {
@@ -477,8 +477,8 @@ namespace RyanDPI.Services
                     CleanupLegacyDiscordDrover();
 
                     var msg = removedCount > 0
-                        ? $"Cleaned up {removedCount} legacy DPI/tunneling service(s)."
-                        : "No legacy conflicting services were found — your system is clean.";
+                        ? LocalizationService.Tf("Msg_LegacyRemoved", removedCount)
+                        : LocalizationService.T("Msg_LegacyNone");
                     return new OperationResult { Success = true, Message = msg };
                 }
                 catch (Exception ex)
@@ -534,13 +534,13 @@ namespace RyanDPI.Services
                 return new OperationResult
                 {
                     Success = true,
-                    Message = "RyanDPI, its background services, firewall rules, and DNS changes have been completely removed."
+                    Message = LocalizationService.T("Msg_UninstallSuccess")
                 };
             }
             catch (Exception ex)
             {
                 LogService.Error($"Uninstall failed: {ex.Message}");
-                return new OperationResult { Success = false, Message = $"Uninstall error: {ex.Message}" };
+                return new OperationResult { Success = false, Message = LocalizationService.Tf("Msg_UninstallError", ex.Message) };
             }
         }
 
@@ -560,18 +560,18 @@ namespace RyanDPI.Services
 
             bool enginePassed = engineSvcRunning && routerSvcRunning && socksAlive;
             string engineSummary = enginePassed
-                ? $"Active on 127.0.0.1:{RyanDpiSettings.DefaultSocksPort} (All Apps)"
+                ? LocalizationService.Tf("SelfTest_LocalEngineActive", RyanDpiSettings.DefaultSocksPort)
                 : (!engineSvcRunning && socksAlive)
-                    ? "Legacy proxy on :1080 — click Install RyanDPI to upgrade"
+                    ? LocalizationService.T("SelfTest_LocalEngineLegacy")
                     : !engineSvcRunning
-                        ? "RyanDPI Engine is not running"
+                        ? LocalizationService.T("SelfTest_LocalEngineStopped")
                         : !routerSvcRunning
-                            ? "RyanDPI Router (ProxiFyreService) is not running"
-                            : $"Port 127.0.0.1:{RyanDpiSettings.DefaultSocksPort} unreachable";
+                            ? LocalizationService.T("SelfTest_LocalRouterStopped")
+                            : LocalizationService.Tf("SelfTest_LocalPortUnreachable", RyanDpiSettings.DefaultSocksPort);
 
             results.Add(new SelfTestCheckResult
             {
-                Name = "RyanDPI Local Engine",
+                Name = LocalizationService.T("SelfTest_LocalEngine"),
                 Passed = enginePassed,
                 LatencyMs = sw.ElapsedMilliseconds,
                 Summary = engineSummary
@@ -588,17 +588,17 @@ namespace RyanDPI.Services
                     DnsResolutionAsync("clientsettings.roblox.com"),
                     DnsResolutionAsync("www.roblox.com"));
                 dnsPassed = dnsTasks[0].Length > 0 && dnsTasks[1].Length > 0 && dnsTasks[2].Length > 0;
-                dnsInfo = dnsPassed ? "Clean Encrypted DNS (Discord & Roblox resolved)" : "DNS lookup returned no addresses";
+                dnsInfo = dnsPassed ? LocalizationService.T("SelfTest_DnsClean") : LocalizationService.T("SelfTest_DnsEmpty");
             }
             catch (Exception ex)
             {
                 dnsPassed = false;
-                dnsInfo = $"DNS failed: {ex.Message}";
+                dnsInfo = LocalizationService.Tf("SelfTest_DnsFailed", ex.Message);
             }
             sw.Stop();
             results.Add(new SelfTestCheckResult
             {
-                Name = "DNS Resolution",
+                Name = LocalizationService.T("SelfTest_Dns"),
                 Passed = dnsPassed,
                 LatencyMs = sw.ElapsedMilliseconds,
                 Summary = dnsInfo
@@ -622,12 +622,12 @@ namespace RyanDPI.Services
 
             var endpoints = new (string Name, string Url, HttpMethod WarmMethod)[]
             {
-                ("Discord", "https://discord.com/api/v10/gateway", HttpMethod.Get),
-                ("Roblox App (Player)", "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", HttpMethod.Get),
-                ("Roblox Studio API", "https://clientsettings.roblox.com/v2/client-version/WindowsStudio64", HttpMethod.Get),
-                ("Roblox Web", "https://www.roblox.com/", HttpMethod.Head),
-                ("Wattpad", "https://www.wattpad.com/", HttpMethod.Head),
-                ("Direct Speed Baseline", "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get)
+                (LocalizationService.T("SelfTest_Discord"), "https://discord.com/api/v10/gateway", HttpMethod.Get),
+                (LocalizationService.T("SelfTest_RobloxApp"), "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", HttpMethod.Get),
+                (LocalizationService.T("SelfTest_RobloxStudio"), "https://clientsettings.roblox.com/v2/client-version/WindowsStudio64", HttpMethod.Get),
+                (LocalizationService.T("SelfTest_RobloxWeb"), "https://www.roblox.com/", HttpMethod.Head),
+                (LocalizationService.T("SelfTest_Wattpad"), "https://www.wattpad.com/", HttpMethod.Head),
+                (LocalizationService.T("SelfTest_DirectBaseline"), "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get)
             };
 
             var endpointChecks = endpoints.Select(async ep =>
@@ -653,7 +653,7 @@ namespace RyanDPI.Services
                             Name = ep.Name,
                             Passed = false,
                             LatencyMs = coldMs,
-                            Summary = $"Unexpected HTTP {code}"
+                            Summary = LocalizationService.Tf("SelfTest_UnexpectedHttp", code)
                         };
                     }
 
@@ -690,7 +690,7 @@ namespace RyanDPI.Services
                         Name = ep.Name,
                         Passed = true,
                         LatencyMs = livePingMs,
-                        Summary = $"Unlocked (HTTP {code} • Cold {coldMs} ms)"
+                        Summary = LocalizationService.Tf("SelfTest_UnlockedFmt", code, coldMs)
                     };
                 }
                 catch (Exception ex)
@@ -703,7 +703,7 @@ namespace RyanDPI.Services
                         Name = ep.Name,
                         Passed = false,
                         LatencyMs = coldSw.ElapsedMilliseconds,
-                        Summary = $"Blocked / Timeout ({shortErr})"
+                        Summary = LocalizationService.Tf("SelfTest_BlockedFmt", shortErr)
                     };
                 }
             });

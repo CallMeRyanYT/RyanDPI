@@ -1,6 +1,7 @@
 using System.Security.Principal;
 using System.Windows;
 using System.Windows.Threading;
+using RyanDPI.Models;
 using RyanDPI.Services;
 
 namespace RyanDPI
@@ -18,6 +19,7 @@ namespace RyanDPI
             base.OnStartup(e);
 
             ParseCommandLineArgs(e.Args);
+            LocalizationService.SetLanguage(RyanDpiSettings.Load().Language);
             LogService.Initialize();
 
             // Single-instance check
@@ -27,8 +29,8 @@ namespace RyanDPI
                 if (!createdNew)
                 {
                     MessageBox.Show(
-                        "RyanDPI is already running. Check your taskbar or end RyanDPI.exe in Task Manager.",
-                        "RyanDPI Already Running",
+                        LocalizationService.T("Dlg_AlreadyRunningBody"),
+                        LocalizationService.T("Dlg_AlreadyRunningTitle"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                     Shutdown();
@@ -44,8 +46,8 @@ namespace RyanDPI
             if (!IsRunningAsAdministrator())
             {
                 MessageBox.Show(
-                    "RyanDPI requires Administrator privileges to manage Windows network services and encrypted DNS.\n\nPlease right-click RyanDPI.exe and select 'Run as administrator'.",
-                    "Administrator Privileges Required",
+                    LocalizationService.T("Dlg_AdminRequiredBody"),
+                    LocalizationService.T("Dlg_AdminRequiredTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 Shutdown();
@@ -85,8 +87,8 @@ namespace RyanDPI
         {
             LogService.Error($"Unhandled UI exception: {e.Exception}");
             MessageBox.Show(
-                $"An unexpected error occurred:\n{e.Exception.Message}",
-                "RyanDPI Error",
+                LocalizationService.Tf("Dlg_ErrorBody", e.Exception.Message),
+                LocalizationService.T("Dlg_ErrorTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             e.Handled = true;
@@ -96,8 +98,8 @@ namespace RyanDPI
         {
             LogService.Error($"Critical unhandled exception: {e.ExceptionObject}");
             MessageBox.Show(
-                $"A critical error occurred:\n{e.ExceptionObject}",
-                "RyanDPI Critical Error",
+                LocalizationService.Tf("Dlg_CriticalBody", e.ExceptionObject),
+                LocalizationService.T("Dlg_CriticalTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }

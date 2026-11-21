@@ -43,6 +43,7 @@ namespace RyanDPI.Models
             "--auto=torst,redirect,ssl_err";
 
         public bool IsDarkTheme { get; set; } = true;
+        public string Language { get; set; } = "en";
         public bool AutoUpdateOnStartup { get; set; } = true;
         public DnsProtectionMode DnsMode { get; set; } = DnsProtectionMode.EncryptedDnsProxy;
         public BypassProfile Profile { get; set; } = BypassProfile.AutoUniversal;
@@ -107,6 +108,7 @@ namespace RyanDPI.Models
                     if (loaded != null)
                     {
                         loaded.ExcludedApps ??= new List<string>();
+                        loaded.Language = Services.LocalizationService.NormalizeLanguage(loaded.Language);
                         if (string.IsNullOrWhiteSpace(loaded.CustomStrategyArgs))
                         {
                             loaded.CustomStrategyArgs = AutoUniversalStrategy;

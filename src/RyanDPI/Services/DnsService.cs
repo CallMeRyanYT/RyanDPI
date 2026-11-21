@@ -30,15 +30,15 @@ namespace RyanDPI.Services
             {
                 case DnsProtectionMode.KeepSystemDns:
                     LogService.Info("DNS mode is set to 'Keep My Existing DNS'. Skipping DNS configuration.");
-                    return (true, "Kept existing system DNS.");
+                    return (true, LocalizationService.T("DnsSummary_Kept"));
 
                 case DnsProtectionMode.WindowsNativeDoH:
                     LogService.Info("Applying Windows Native DoH (Google 8.8.8.8 + Quad9 9.9.9.9)...");
                     StopDnsCryptIfRunning();
                     var dohOk = await Task.Run(ApplyWindowsNativeDoH);
                     return dohOk
-                        ? (true, "Windows Native DoH (Google + Quad9) configured.")
-                        : (false, "Could not verify Windows Native DoH configuration.");
+                        ? (true, LocalizationService.T("DnsSummary_NativeDoH"))
+                        : (false, LocalizationService.T("DnsSummary_NativeDoHFail"));
 
                 case DnsProtectionMode.EncryptedDnsProxy:
                 default:
@@ -50,7 +50,7 @@ namespace RyanDPI.Services
                         if (adapterOk)
                         {
                             LogService.Info("Encrypted DNS (DNSCrypt-Proxy) is active and verified.");
-                            return (true, "Encrypted DNS (DNSCrypt-Proxy) active.");
+                            return (true, LocalizationService.T("DnsSummary_EncryptedOk"));
                         }
                     }
 
@@ -59,8 +59,8 @@ namespace RyanDPI.Services
                     StopDnsCryptIfRunning();
                     var fallbackOk = await Task.Run(ApplyWindowsNativeDoH);
                     return fallbackOk
-                        ? (true, "Fallback active: Windows Native DoH (Google + Quad9).")
-                        : (false, "Both DNSCrypt-Proxy and Windows DoH failed; system DNS was left untouched.");
+                        ? (true, LocalizationService.T("DnsSummary_FallbackDoH"))
+                        : (false, LocalizationService.T("DnsSummary_AllFail"));
             }
         }
 
