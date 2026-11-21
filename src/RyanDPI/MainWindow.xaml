@@ -371,7 +371,7 @@
                                                FontFamily="{StaticResource FontBold}"
                                                FontSize="14"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Verify Discord, Roblox, Roblox Studio API &amp; direct latency right now."
+                                    <TextBlock Text="Verify Discord, Roblox App, Roblox Studio, Wattpad &amp; live ping right now."
                                                FontSize="11.5"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                Margin="0,2,0,0"/>
@@ -743,7 +743,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,10,0">
                             <TextBlock x:Name="TxtAboutVersion"
-                                       Text="RyanDPI v2.1.0 — System-Wide Zero-Speed-Loss DPI Bypass"
+                                       Text="RyanDPI v2.1.1 — System-Wide Zero-Speed-Loss DPI Bypass"
                                        FontFamily="{StaticResource FontBold}"
                                        FontSize="12"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>

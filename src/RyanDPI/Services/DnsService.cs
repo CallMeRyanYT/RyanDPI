@@ -192,9 +192,17 @@ ipconfig /flushdns | Out-Null
                     }
                 }
 
-                // Stage/refresh files whenever service is missing or any required file is missing
-                if (needsServiceRegistration || !File.Exists(targetExe) || !File.Exists(targetToml))
+                var bundledToml = Path.Combine(bundledSourceDir, "dnscrypt-proxy.toml");
+                bool configUpdated = File.Exists(bundledToml) && File.Exists(targetToml) &&
+                    !File.ReadAllBytes(bundledToml).SequenceEqual(File.ReadAllBytes(targetToml));
+
+                // Stage/refresh files whenever service is missing, required file is missing, or config was upgraded
+                if (needsServiceRegistration || !File.Exists(targetExe) || !File.Exists(targetToml) || configUpdated)
                 {
+                    if (configUpdated)
+                    {
+                        LogService.Info("Detected updated low-latency dnscrypt-proxy.toml; refreshing DNS proxy configuration...");
+                    }
                     if (currentState == ComponentState.Running)
                     {
                         ServiceControlHelper.StopService(DnsCryptServiceName);

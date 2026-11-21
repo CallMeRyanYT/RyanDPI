@@ -474,7 +474,7 @@ namespace RyanDPI
                 {
                     Name = r.Name,
                     Summary = r.Summary,
-                    LatencyText = r.Passed ? $"{r.LatencyMs} ms" : "Failed",
+                    LatencyText = r.Passed ? (r.LatencyMs <= 0 ? "<1 ms" : $"{r.LatencyMs} ms") : "Failed",
                     StatusBrush = r.Passed ? okBrush : failBrush
                 });
             }
@@ -530,7 +530,7 @@ namespace RyanDPI
             TxtProfileDescription.Text = tag switch
             {
                 nameof(BypassProfile.ClassicByeDpi) =>
-                    "Uses the classic lightweight strategy (--split 1 --disorder 3+s --mod-http=h,d --auto=torst --tlsrec 1+s) upgraded with 128 KB full-speed buffers.",
+                    "Uses the lightweight zero-retransmit TLS record split strategy (--tlsrec 1+s --mod-http=h,d) with automatic split/disorder fallback and 128 KB full-speed buffers.",
                 nameof(BypassProfile.StrictIsp) =>
                     "Starts immediately with TLS record fragmentation + TCP disorder + OOB + low-TTL fake packets for aggressive ISPs like Superonline or mobile carriers.",
                 nameof(BypassProfile.Custom) =>

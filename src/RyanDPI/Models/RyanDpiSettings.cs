@@ -22,19 +22,21 @@ namespace RyanDPI.Models
     {
         public const int DefaultSocksPort = 1080;
 
+        // Zero-retransmit Stage 1 (--tlsrec 1+s) unlocks Turkish ISPs on the first packet with 0ms
+        // added DPI latency (no TCP out-of-order/retransmit lag!), with 5 automatic fallback stages.
         public const string AutoUniversalStrategy =
-            "--split 1 --disorder 3+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --tlsrec 1+s --disorder 3+s --mod-http=h,d " +
+            "--tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
             "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --disorder 3+s " +
             "--auto=torst,redirect,ssl_err";
 
         public const string ClassicByeDpiStrategy =
-            "--split 1 --disorder 3+s --mod-http=h,d --auto=torst --tlsrec 1+s";
+            "--tlsrec 1+s --mod-http=h,d --auto=torst --split 1 --disorder 3+s";
 
         public const string StrictIspStrategy =
-            "--tlsrec 1+s --disorder 3+s --mod-http=h,d " +
+            "--tlsrec 1+s --split 1 --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
             "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --disorder 3+s " +
             "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
@@ -56,12 +58,12 @@ namespace RyanDPI.Models
 
         public string BuildCiadpiArguments()
         {
-            // High-throughput loopback settings:
+            // High-throughput, lowest-latency loopback settings:
             // -i 127.0.0.1 -p 1080 : Loopback-only local SOCKS5 proxy
             // -c 4096              : Support 4,096 concurrent sockets across all apps
             // -b 131072            : 128 KB socket buffer for full gigabit line speed
-            // -u 86400 -T 3 -L 3   : 24h per-IP strategy cache, 3s fallback trigger, adaptive sorting
-            var baseFlags = $"-i 127.0.0.1 -p {DefaultSocksPort} -c 4096 -b 131072 -u 86400 -T 3 -L 3";
+            // -u 86400 -T 2 -L 3   : 24h per-IP strategy cache, fast 2s fallback trigger, adaptive sorting
+            var baseFlags = $"-i 127.0.0.1 -p {DefaultSocksPort} -c 4096 -b 131072 -u 86400 -T 2 -L 3";
             if (TunnelUdp)
             {
                 baseFlags += " -a 1";

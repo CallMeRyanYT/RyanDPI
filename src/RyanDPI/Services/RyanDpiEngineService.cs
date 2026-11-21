@@ -398,6 +398,12 @@ namespace RyanDPI.Services
                     };
                 }
 
+                if (settings.DnsMode == DnsProtectionMode.EncryptedDnsProxy)
+                {
+                    var bundledDnsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "dnscrypt-proxy");
+                    await _dnsService.ApplyDnsModeAsync(settings.DnsMode, bundledDnsDir);
+                }
+
                 await ConfigureFirewallRulesAsync();
 
                 if (hasOldV200Service || status.EngineState == ComponentState.NotInstalled || status.RouterState == ComponentState.NotInstalled)
@@ -543,9 +549,12 @@ namespace RyanDPI.Services
             var results = new List<SelfTestCheckResult>();
 
             // 1. Local RyanDPI SOCKS5 Engine socket + service check
-            var sw = Stopwatch.StartNew();
+            // Query Windows SCM states first so the stopwatch measures true local engine response time (~1 ms),
+            // not sc.exe child process spawn time.
             var engineSvcRunning = await Task.Run(() => ServiceControlHelper.QueryServiceState(EngineServiceName) == ComponentState.Running);
             var routerSvcRunning = await Task.Run(() => ServiceControlHelper.QueryServiceState(RouterServiceName) == ComponentState.Running);
+
+            var sw = Stopwatch.StartNew();
             var socksAlive = await ProbeTcpPortAsync("127.0.0.1", RyanDpiSettings.DefaultSocksPort, 1500);
             sw.Stop();
 
@@ -576,9 +585,10 @@ namespace RyanDPI.Services
             {
                 var dnsTasks = await Task.WhenAll(
                     DnsResolutionAsync("discord.com"),
-                    DnsResolutionAsync("clientsettings.roblox.com"));
-                dnsPassed = dnsTasks[0].Length > 0 && dnsTasks[1].Length > 0;
-                dnsInfo = dnsPassed ? "Clean DNS (Discord & Roblox resolved)" : "DNS lookup returned no addresses";
+                    DnsResolutionAsync("clientsettings.roblox.com"),
+                    DnsResolutionAsync("www.roblox.com"));
+                dnsPassed = dnsTasks[0].Length > 0 && dnsTasks[1].Length > 0 && dnsTasks[2].Length > 0;
+                dnsInfo = dnsPassed ? "Clean Encrypted DNS (Discord & Roblox resolved)" : "DNS lookup returned no addresses";
             }
             catch (Exception ex)
             {
@@ -594,55 +604,105 @@ namespace RyanDPI.Services
                 Summary = dnsInfo
             });
 
-            // 3. Parallel live HTTPS reachability tests (goes through live system stack -> ProxiFyre -> RyanDPI!)
-            using var handler = new HttpClientHandler
+            // 3. Parallel live HTTPS reachability + warm keep-alive ping tests
+            //    (goes through live system stack -> ProxiFyre -> RyanDpiEngine!)
+            using var handler = new SocketsHttpHandler
             {
                 AllowAutoRedirect = true,
-                UseProxy = false
+                UseProxy = false,
+                ConnectTimeout = TimeSpan.FromSeconds(4),
+                PooledConnectionLifetime = TimeSpan.FromMinutes(1),
+                EnableMultipleHttp2Connections = true
             };
             using var http = new HttpClient(handler)
             {
-                Timeout = TimeSpan.FromSeconds(5)
+                Timeout = TimeSpan.FromSeconds(6)
             };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("RyanDPI-HealthCheck/2.0");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd($"RyanDPI-HealthCheck/{AutoUpdateService.GetCurrentVersionString()}");
 
-            var endpoints = new (string Name, string Url)[]
+            var endpoints = new (string Name, string Url, HttpMethod WarmMethod)[]
             {
-                ("Discord", "https://discord.com/api/v10/gateway"),
-                ("Roblox Studio API", "https://clientsettings.roblox.com/v2/client-version/WindowsStudio64"),
-                ("Roblox Web", "https://www.roblox.com/"),
-                ("Wattpad", "https://www.wattpad.com/"),
-                ("Direct Speed Baseline", "https://1.1.1.1/cdn-cgi/trace")
+                ("Discord", "https://discord.com/api/v10/gateway", HttpMethod.Get),
+                ("Roblox App (Player)", "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", HttpMethod.Get),
+                ("Roblox Studio API", "https://clientsettings.roblox.com/v2/client-version/WindowsStudio64", HttpMethod.Get),
+                ("Roblox Web", "https://www.roblox.com/", HttpMethod.Head),
+                ("Wattpad", "https://www.wattpad.com/", HttpMethod.Head),
+                ("Direct Speed Baseline", "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get)
             };
 
             var endpointChecks = endpoints.Select(async ep =>
             {
-                var epSw = Stopwatch.StartNew();
+                var coldSw = Stopwatch.StartNew();
                 try
                 {
-                    using var req = new HttpRequestMessage(HttpMethod.Get, ep.Url);
-                    using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-                    epSw.Stop();
-                    var code = (int)resp.StatusCode;
+                    using var coldReq = new HttpRequestMessage(HttpMethod.Get, ep.Url)
+                    {
+                        Version = HttpVersion.Version20,
+                        VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+                    };
+                    using var coldResp = await http.SendAsync(coldReq, HttpCompletionOption.ResponseHeadersRead);
+                    coldSw.Stop();
+                    var coldMs = coldSw.ElapsedMilliseconds;
+                    var code = (int)coldResp.StatusCode;
                     bool ok = code >= 200 && code < 500;
+
+                    if (!ok)
+                    {
+                        return new SelfTestCheckResult
+                        {
+                            Name = ep.Name,
+                            Passed = false,
+                            LatencyMs = coldMs,
+                            Summary = $"Unexpected HTTP {code}"
+                        };
+                    }
+
+                    // Drain small JSON/trace payloads so HTTP/1.1 sockets can also stay pooled for the warm ping probe
+                    if (ep.WarmMethod == HttpMethod.Get)
+                    {
+                        try { await coldResp.Content.ReadAsByteArrayAsync(); } catch { }
+                    }
+
+                    // Measure true live round-trip ping over the established keep-alive / HTTP2 connection
+                    long livePingMs = coldMs;
+                    try
+                    {
+                        var warmSw = Stopwatch.StartNew();
+                        using var warmReq = new HttpRequestMessage(ep.WarmMethod, ep.Url)
+                        {
+                            Version = HttpVersion.Version20,
+                            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+                        };
+                        using var warmResp = await http.SendAsync(warmReq, HttpCompletionOption.ResponseHeadersRead);
+                        warmSw.Stop();
+                        if ((int)warmResp.StatusCode >= 200 && (int)warmResp.StatusCode < 500)
+                        {
+                            livePingMs = Math.Min(warmSw.ElapsedMilliseconds, coldMs);
+                        }
+                    }
+                    catch
+                    {
+                        // Keep cold measurement if warm probe fails
+                    }
+
                     return new SelfTestCheckResult
                     {
                         Name = ep.Name,
-                        Passed = ok,
-                        LatencyMs = epSw.ElapsedMilliseconds,
-                        Summary = ok ? $"Unlocked (HTTP {code})" : $"Unexpected HTTP {code}"
+                        Passed = true,
+                        LatencyMs = livePingMs,
+                        Summary = $"Unlocked (HTTP {code} • Cold {coldMs} ms)"
                     };
                 }
                 catch (Exception ex)
                 {
-                    epSw.Stop();
+                    coldSw.Stop();
                     var shortErr = ex.InnerException?.Message ?? ex.Message;
                     if (shortErr.Length > 60) shortErr = shortErr[..60] + "...";
                     return new SelfTestCheckResult
                     {
                         Name = ep.Name,
                         Passed = false,
-                        LatencyMs = epSw.ElapsedMilliseconds,
+                        LatencyMs = coldSw.ElapsedMilliseconds,
                         Summary = $"Blocked / Timeout ({shortErr})"
                     };
                 }
