@@ -1,0 +1,24 @@
+{
+  "logLevel": "Error",
+  "bypassLan": true,
+  "proxies": [
+    {
+      "appNames": [
+        ""
+      ],
+      "socks5ProxyEndpoint": "127.0.0.1:1080",
+      "supportedProtocols": [
+        "TCP"
+      ]
+    }
+  ],
+  "excludes": [
+    "ciadpi.exe",
+    "C:\\Program Files\\RyanDPI\\engine\\byedpi\\ciadpi.exe",
+    "ProxiFyre.exe",
+    "C:\\Program Files\\RyanDPI\\engine\\proxifyre\\ProxiFyre.exe",
+    "dnscrypt-proxy.exe",
+    "C:\\Program Files\\RyanDPI\\engine\\dnscrypt\\dnscrypt-proxy.exe",
+    "System"
+  ]
+}

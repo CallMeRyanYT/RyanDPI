@@ -1,0 +1,187 @@
+; RyanDPI Windows Installer Script (English-Only)
+; Requires Inno Setup 6
+
+#define MyAppName "RyanDPI"
+#define MyAppVersion "2.0.0"
+#define MyAppPublisher "RyanDPI"
+#define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
+#define MyAppExeName "RyanDPI.exe"
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[CustomMessages]
+english.WelcomeLabel2=This wizard will install [name/ver] on your computer.%n%n[name] unlocks all blocked apps and websites in Turkey (including Roblox Studio, Roblox, Discord, and all browsers) with zero speed loss.%n%nClick Next to continue.
+english.LaunchAfterInstall=Launch RyanDPI now
+english.CreateDesktopShortcut=Create a desktop shortcut
+english.UninstallProgress=Stopping RyanDPI services and restoring network settings...
+
+[Setup]
+AppId={{8D4F62C9-1A7B-4C94-9E35-72A8B1F4209E}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
+AppMutex=Global\RyanDPI_SingleInstance_Mutex
+CloseApplications=yes
+DefaultDirName={autopf}\{#MyAppName}
+DefaultGroupName={#MyAppName}
+AllowNoIcons=yes
+UsePreviousAppDir=yes
+DirExistsWarning=no
+OutputDir=..\dist
+OutputBaseFilename=RyanDPI-Setup-Windows-{#MyAppVersion}
+SetupIconFile=RyanDPI\Resources\ryandpi.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
+Compression=lzma2
+SolidCompression=yes
+PrivilegesRequired=admin
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+WizardStyle=modern
+DisableProgramGroupPage=yes
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopShortcut}"; GroupDescription: "Additional shortcuts:"
+
+[Files]
+Source: "RyanDPI\bin\Release\net8.0-windows\RyanDPI.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "RyanDPI\bin\Release\net8.0-windows\RyanDPI.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "RyanDPI\bin\Release\net8.0-windows\RyanDPI.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "RyanDPI\bin\Release\net8.0-windows\RyanDPI.deps.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "RyanDPI\bin\Release\net8.0-windows\res\*"; DestDir: "{app}\res"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "RyanDPI\bin\Release\net8.0-windows\Prerequisites\*"; DestDir: "{app}\Prerequisites"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Registry]
+Root: HKLM; Subkey: "SOFTWARE\RyanDPI"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\RyanDPI"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
+
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchAfterInstall}"; Flags: nowait postinstall skipifsilent runascurrentuser
+
+[Code]
+function IsDotNet8DesktopInstalled: Boolean;
+var
+  Key, DisplayName, Version: String;
+  SubKeyNames: TArrayOfString;
+  I: Integer;
+begin
+  Result := False;
+  Key := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall';
+  if RegGetSubkeyNames(HKLM, Key, SubKeyNames) then
+  begin
+    for I := 0 to GetArrayLength(SubKeyNames) - 1 do
+    begin
+      if RegQueryStringValue(HKLM, Key + '\' + SubKeyNames[I], 'DisplayName', DisplayName) then
+      begin
+        if (Pos('Microsoft Windows Desktop Runtime - 8.0', DisplayName) > 0) or
+           (Pos('Microsoft Windows Desktop Runtime 8.0', DisplayName) > 0) then
+        begin
+          if RegQueryStringValue(HKLM, Key + '\' + SubKeyNames[I], 'DisplayVersion', Version) then
+          begin
+            if Pos('8.0', Version) = 1 then
+            begin
+              Result := True;
+              Exit;
+            end;
+          end;
+        end;
+      end;
+    end;
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  Result := True;
+  if not IsDotNet8DesktopInstalled then
+  begin
+    if MsgBox(
+      'RyanDPI requires Microsoft .NET 8.0 Desktop Runtime (x64), which was not detected on this PC.' + #13#10 + #13#10 +
+      'Would you like to open Microsoft''s official download page now? (You can still continue installation afterwards.)',
+      mbConfirmation, MB_YESNO) = IDYES then
+    begin
+      ShellExec('open', 'https://dotnet.microsoft.com/en-us/download/dotnet/8.0', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+    end;
+  end;
+end;
+
+procedure StopAndDeleteService(ServiceName: String);
+var
+  ResultCode: Integer;
+begin
+  Exec('sc.exe', 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(300);
+  Exec('sc.exe', 'delete ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+  EngineDir: String;
+  LocalAppDir: String;
+  ResetDnsCmd: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    if Assigned(WizardForm) and Assigned(WizardForm.StatusLabel) then
+      WizardForm.StatusLabel.Caption := CustomMessage('UninstallProgress');
+
+    // Stop and remove RyanDPI and any legacy services
+    StopAndDeleteService('ProxiFyreService');
+    StopAndDeleteService('RyanDPI');
+    StopAndDeleteService('dnscrypt-proxy');
+    StopAndDeleteService('ByeDPI');
+    StopAndDeleteService('GoodbyeDPI');
+    StopAndDeleteService('zapret');
+    StopAndDeleteService('winws1');
+    StopAndDeleteService('winws2');
+    StopAndDeleteService('WinDivert');
+    StopAndDeleteService('WinDivert14');
+    StopAndDeleteService('wiresock-client-service');
+    StopAndDeleteService('WireSockAppService');
+    StopAndDeleteService('WireSockConnectService');
+    Exec('schtasks.exe', '/delete /tn "WireSockRefresh" /f', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    // Remove firewall rules
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    // Restore automatic DHCP DNS and clear DoH settings on physical + active non-virtual adapters
+    ResetDnsCmd := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "' +
+      '$seen = @{}; $targets = @(); ' +
+      'Get-NetAdapter -Physical -ErrorAction SilentlyContinue | ForEach-Object { if (-not $seen.ContainsKey($_.InterfaceIndex)) { $seen[$_.InterfaceIndex]=$true; $targets+=$_ } }; ' +
+      'Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq ''Up'' -and $_.InterfaceDescription -notlike ''*Virtual*'' -and $_.InterfaceDescription -notlike ''*Hyper-V*'' -and $_.InterfaceDescription -notlike ''*WSL*'' -and $_.Name -notlike ''*vEthernet*'' -and $_.InterfaceDescription -notlike ''*TAP*'' -and $_.InterfaceDescription -notlike ''*TUN*'' -and $_.InterfaceDescription -notlike ''*VPN*'' } | ForEach-Object { if (-not $seen.ContainsKey($_.InterfaceIndex)) { $seen[$_.InterfaceIndex]=$true; $targets+=$_ } }; ' +
+      'foreach ($a in $targets) { ' +
+      'Set-DnsClientServerAddress -InterfaceIndex $a.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue; ' +
+      'netsh interface ip set dns $a.Name dhcp | Out-Null; ' +
+      'netsh interface ipv6 set dns $a.Name dhcp | Out-Null; ' +
+      '$p = ''HKLM:\System\CurrentControlSet\Services\Dnscache\InterfaceSpecificParameters\'' + $a.InterfaceGuid + ''\DohInterfaceSettings''; ' +
+      'if (Test-Path $p) { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue } }; ' +
+      'Clear-DnsClientCache -ErrorAction SilentlyContinue; ipconfig /flushdns | Out-Null"';
+    Exec('powershell.exe', ResetDnsCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    // Clean up engine and local app data
+    EngineDir := ExpandConstant('{app}\engine');
+    if DirExists(EngineDir) then
+      DelTree(EngineDir, True, True, True);
+
+    LocalAppDir := ExpandConstant('{localappdata}\RyanDPI');
+    if DirExists(LocalAppDir) then
+      DelTree(LocalAppDir, True, True, True);
+  end;
+end;

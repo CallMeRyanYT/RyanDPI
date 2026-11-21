@@ -1,0 +1,17 @@
+# Build outputs
+**/bin/
+**/obj/
+dist/
+*.user
+*.suo
+*.pdb
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store

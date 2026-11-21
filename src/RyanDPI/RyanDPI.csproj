@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Resources\ryandpi.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>RyanDPI</AssemblyName>
+    <RootNamespace>RyanDPI</RootNamespace>
+    <AssemblyTitle>RyanDPI</AssemblyTitle>
+    <AssemblyDescription>System-wide zero-speed-loss DPI bypass for Turkey</AssemblyDescription>
+    <AssemblyProduct>RyanDPI</AssemblyProduct>
+    <AssemblyCompany>RyanDPI</AssemblyCompany>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <InformationalVersion>2.0.0</InformationalVersion>
+    <PublishTrimmed>false</PublishTrimmed>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\ryandpi.ico" />
+    <Resource Include="Resources\Poppins-Regular.ttf" />
+    <Resource Include="Resources\Poppins-Bold.ttf" />
+    <Resource Include="Resources\Montserrat-VariableFont_wght.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Resources\byedpi\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>res\byedpi\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+    <Content Include="Resources\proxifyre\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>res\proxifyre\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+    <Content Include="Resources\dnscrypt-proxy\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>res\dnscrypt-proxy\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+    <Content Include="..\Prerequisites\VC_redist.x64.exe" Condition="Exists('..\Prerequisites\VC_redist.x64.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Prerequisites\VC_redist.x64.exe</Link>
+    </Content>
+    <Content Include="..\Prerequisites\Windows.Packet.Filter.3.6.1.1.x64.msi" Condition="Exists('..\Prerequisites\Windows.Packet.Filter.3.6.1.1.x64.msi')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Prerequisites\Windows.Packet.Filter.3.6.1.1.x64.msi</Link>
+    </Content>
+  </ItemGroup>
+
+</Project>
