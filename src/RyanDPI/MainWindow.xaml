@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="RyanDPI"
         Icon="pack://application:,,,/RyanDPI;component/Resources/ryandpi.ico"
-        Width="560" Height="700"
-        MinWidth="540" MinHeight="640"
+        Width="580" Height="720"
+        MinWidth="560" MinHeight="660"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         AllowsTransparency="False"
@@ -42,15 +42,30 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Brand Lockup -->
+                <!-- Brand Lockup: Black & Neon Red DPI Shield Logo -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource BrandGradientBrush}" Margin="0,0,10,0">
-                        <Path Data="M13 2L4 14h7l-1 8 9-12h-7l1-8z"
-                              Fill="White"
-                              Stretch="Uniform"
-                              Width="15" Height="15"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center"/>
+                    <Border Width="34" Height="34" CornerRadius="9"
+                            Background="#070709"
+                            BorderBrush="#99FF1E3C"
+                            BorderThickness="1"
+                            Margin="0,0,10,0">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#FF1736" BlurRadius="10" ShadowDepth="0" Opacity="0.45"/>
+                        </Border.Effect>
+                        <Grid Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M13,1.5 L23.5,5.5 C23.5,14 19.5,20.5 13,24.5 C6.5,20.5 2.5,14 2.5,5.5 Z"
+                                  Fill="#090507"
+                                  Stroke="#FF1E3C"
+                                  StrokeThickness="1.8"
+                                  StrokeLineJoin="Round"/>
+                            <TextBlock Text="DPI"
+                                       FontFamily="{StaticResource FontBold}"
+                                       FontSize="7.8"
+                                       Foreground="#FF3352"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,-1,0,0"/>
+                        </Grid>
                     </Border>
                     <TextBlock Text="RyanDPI"
                                FontFamily="{StaticResource FontBold}"
@@ -61,7 +76,7 @@
                             BorderBrush="{DynamicResource BorderSubtleBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Padding="7,2"
+                            Padding="8,2.5"
                             Margin="10,0,0,0"
                             VerticalAlignment="Center">
                         <TextBlock Text="ALL APPS • FULL SPEED"
@@ -154,29 +169,46 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Glowing Status Orb -->
+                                <!-- Glowing Shield-DPI Status Emblem -->
                                 <Border x:Name="StatusOrbOuter"
-                                        Width="58" Height="58"
-                                        CornerRadius="29"
-                                        Background="{DynamicResource BgCardAltBrush}"
-                                        BorderBrush="{DynamicResource BorderSubtleBrush}"
-                                        BorderThickness="2"
+                                        Width="62" Height="62"
+                                        CornerRadius="16"
+                                        Background="#080608"
+                                        BorderBrush="{DynamicResource AccentCyanBrush}"
+                                        BorderThickness="1.5"
                                         Margin="0,0,16,0"
                                         VerticalAlignment="Center">
-                                    <Path x:Name="StatusOrbIcon"
-                                          Data="M13 2L4 14h7l-1 8 9-12h-7l1-8z"
-                                          Fill="{DynamicResource TextSecondaryBrush}"
-                                          Stretch="Uniform"
-                                          Width="24" Height="24"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"/>
+                                    <Border.Effect>
+                                        <DropShadowEffect x:Name="StatusShieldGlow"
+                                                          Color="#FF1E3C"
+                                                          BlurRadius="14"
+                                                          ShadowDepth="0"
+                                                          Opacity="0.45"/>
+                                    </Border.Effect>
+                                    <Grid Width="42" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Path x:Name="StatusShieldPath"
+                                              Data="M21,2 L38,8.5 C38,22.5 31.5,34 21,41 C10.5,34 4,22.5 4,8.5 Z"
+                                              Fill="#0B0609"
+                                              Stroke="#FF1E3C"
+                                              StrokeThickness="2.4"
+                                              StrokeLineJoin="Round"/>
+                                        <TextBlock x:Name="StatusShieldText"
+                                                   Text="DPI"
+                                                   FontFamily="{StaticResource FontBold}"
+                                                   FontSize="12.5"
+                                                   Foreground="#FF3352"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,-2,0,0"/>
+                                    </Grid>
                                 </Border>
 
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
                                     <TextBlock x:Name="TxtStatusHeadline"
                                                Text="Checking status..."
                                                FontFamily="{StaticResource FontBold}"
-                                               FontSize="19"
+                                               FontSize="18.5"
+                                               TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     <TextBlock x:Name="TxtStatusSubtitle"
                                                Text="Scanning Windows services and encrypted DNS..."
@@ -304,17 +336,22 @@
                             Margin="0,0,0,14">
                         <StackPanel>
                             <Grid Margin="0,0,0,8">
-                                <TextBlock x:Name="TxtProgressTitle"
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" x:Name="TxtProgressTitle"
                                            Text="Installing RyanDPI..."
                                            FontFamily="{StaticResource FontBold}"
                                            FontSize="13.5"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="0,0,10,0"
                                            Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                <TextBlock x:Name="TxtProgressStep"
+                                <TextBlock Grid.Column="1" x:Name="TxtProgressStep"
                                            Text="Step 1 / 5"
                                            FontSize="11.5"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource AccentCyanBrush}"
-                                           HorizontalAlignment="Right"
                                            VerticalAlignment="Center"/>
                             </Grid>
                             <ProgressBar x:Name="ProgressInstall"
@@ -366,21 +403,27 @@
                     <Border Style="{StaticResource CardBorderStyle}">
                         <StackPanel>
                             <Grid Margin="0,0,0,10">
-                                <StackPanel>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
                                     <TextBlock Text="Unblock &amp; Speed Self-Test"
                                                FontFamily="{StaticResource FontBold}"
                                                FontSize="14"
+                                               TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     <TextBlock Text="Verify Discord, Roblox App, Roblox Studio, Wattpad &amp; live ping right now."
                                                FontSize="11.5"
+                                               TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                Margin="0,2,0,0"/>
                                 </StackPanel>
-                                <Button x:Name="BtnRunSelfTest"
+                                <Button Grid.Column="1"
+                                        x:Name="BtnRunSelfTest"
                                         Content="Run Test"
                                         Style="{StaticResource SecondaryButtonStyle}"
                                         Height="34" Padding="14,0" FontSize="12"
-                                        HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
                                         Click="BtnRunSelfTest_Click"/>
                             </Grid>
@@ -401,16 +444,18 @@
                                                 <Border Grid.Column="0" Width="8" Height="8" CornerRadius="4"
                                                         Background="{Binding StatusBrush}"
                                                         VerticalAlignment="Center" Margin="0,0,9,0"/>
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
                                                     <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold"
+                                                               TextWrapping="Wrap"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
                                                     <TextBlock Text="{Binding Summary}" FontSize="11"
+                                                               TextWrapping="Wrap"
                                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                                 </StackPanel>
                                                 <TextBlock Grid.Column="2" Text="{Binding LatencyText}"
                                                            FontSize="11.5" FontWeight="SemiBold"
                                                            Foreground="{Binding StatusBrush}"
-                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -498,7 +543,7 @@
                                 </ComboBox>
 
                                 <TextBlock x:Name="TxtDnsDescription"
-                                           Text="Encrypts all DNS lookups via Google, Cloudflare, and Quad9 with a local cache. Eliminates ISP DNS poisoning on both Windows 10 and 11."
+                                           Text="Runs local encrypted DNS (DNSCrypt-Proxy) via Cloudflare, Google &amp; Quad9 (fastest-first) with an 8,192-entry cache. Eliminates ISP DNS poisoning on Windows 10 &amp; 11."
                                            FontSize="11.5"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"
@@ -606,15 +651,19 @@
                                                     Padding="10,6"
                                                     Margin="0,2">
                                                 <Grid>
-                                                    <TextBlock Text="{Binding}" FontSize="12"
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding}" FontSize="12"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                                VerticalAlignment="Center"
+                                                               Margin="0,0,8,0"
                                                                TextTrimming="CharacterEllipsis"/>
-                                                    <Button Content="×"
+                                                    <Button Grid.Column="1" Content="×"
                                                             Tag="{Binding}"
                                                             Style="{StaticResource IconButtonStyle}"
                                                             Width="24" Height="24" FontSize="14"
-                                                            HorizontalAlignment="Right"
                                                             Click="BtnRemoveExclude_Click"/>
                                                 </Grid>
                                             </Border>
@@ -696,12 +745,17 @@
                         </Grid.RowDefinitions>
 
                         <Grid Grid.Row="0" Margin="0,0,0,8">
-                            <TextBlock Text="Live Activity Log"
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Live Activity Log"
                                        FontFamily="{StaticResource FontBold}"
                                        FontSize="14"
+                                       Margin="0,0,10,0"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        VerticalAlignment="Center"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
                                 <Button Content="Copy"
                                         Style="{StaticResource SecondaryButtonStyle}"
                                         Height="28" Padding="12,0" FontSize="11.5"
@@ -741,11 +795,12 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
                             <TextBlock x:Name="TxtAboutVersion"
-                                       Text="RyanDPI v2.1.1 — System-Wide Zero-Speed-Loss DPI Bypass"
+                                       Text="RyanDPI v2.2.0 — System-Wide Zero-Speed-Loss DPI Bypass"
                                        FontFamily="{StaticResource FontBold}"
                                        FontSize="12"
+                                       TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <TextBlock Text="100% local DPI desynchronization (no remote VPN servers). Built with ByeDPI, ProxiFyre &amp; DNSCrypt-Proxy."
                                        FontSize="11"

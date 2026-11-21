@@ -160,17 +160,18 @@ namespace RyanDPI
             var successBg = (Brush)FindResource("SuccessBgBrush");
             var warnBrush = (Brush)FindResource("WarningBrush");
             var warnBg = (Brush)FindResource("WarningBgBrush");
+            var accentBrush = (Brush)FindResource("AccentCyanBrush");
             var mutedBrush = (Brush)FindResource("TextMutedBrush");
             var cardAltBrush = (Brush)FindResource("BgCardAltBrush");
-            var borderBrush = (Brush)FindResource("BorderSubtleBrush");
 
-            // Hero orb & headline
+            // Hero Shield-DPI emblem & headline
             if (status.IsFullyActive)
             {
                 StatusOrbOuter.Background = successBg;
                 StatusOrbOuter.BorderBrush = successBrush;
-                StatusOrbIcon.Fill = successBrush;
-                StatusOrbIcon.Data = Geometry.Parse("M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z");
+                StatusShieldPath.Stroke = successBrush;
+                StatusShieldText.Foreground = successBrush;
+                StatusShieldGlow.Color = (Color)FindResource("SuccessColor");
 
                 TxtStatusHeadline.Text = "RyanDPI is Active";
                 TxtStatusSubtitle.Text = "Every app & website is unlocked automatically at full native internet speed.";
@@ -184,8 +185,9 @@ namespace RyanDPI
             {
                 StatusOrbOuter.Background = warnBg;
                 StatusOrbOuter.BorderBrush = warnBrush;
-                StatusOrbIcon.Fill = warnBrush;
-                StatusOrbIcon.Data = Geometry.Parse("M13 2L4 14h7l-1 8 9-12h-7l1-8z");
+                StatusShieldPath.Stroke = warnBrush;
+                StatusShieldText.Foreground = warnBrush;
+                StatusShieldGlow.Color = (Color)FindResource("WarningColor");
 
                 TxtStatusHeadline.Text = status.IsPartiallyRunning ? "RyanDPI Partially Active" : "RyanDPI is Paused";
                 TxtStatusSubtitle.Text = status.IsPartiallyRunning
@@ -199,10 +201,13 @@ namespace RyanDPI
             }
             else
             {
-                StatusOrbOuter.Background = cardAltBrush;
-                StatusOrbOuter.BorderBrush = borderBrush;
-                StatusOrbIcon.Fill = (Brush)FindResource("AccentCyanBrush");
-                StatusOrbIcon.Data = Geometry.Parse("M13 2L4 14h7l-1 8 9-12h-7l1-8z");
+                StatusOrbOuter.Background = _settings.IsDarkTheme
+                    ? new SolidColorBrush(Color.FromRgb(8, 6, 8))
+                    : cardAltBrush;
+                StatusOrbOuter.BorderBrush = accentBrush;
+                StatusShieldPath.Stroke = accentBrush;
+                StatusShieldText.Foreground = accentBrush;
+                StatusShieldGlow.Color = (Color)FindResource("AccentCyanColor");
 
                 TxtStatusHeadline.Text = "Ready to Unlock Everything";
                 TxtStatusSubtitle.Text = status.HasLegacyServices
@@ -557,7 +562,7 @@ namespace RyanDPI
                 nameof(DnsProtectionMode.KeepSystemDns) =>
                     "Leaves your network adapter DNS untouched. Choose this if you already manage your own encrypted DNS (e.g. NextDNS, AdGuard, or router DoH).",
                 _ =>
-                    "Runs local encrypted DNS (DNSCrypt-Proxy) via Google, Cloudflare & Quad9 with a 4,096-entry cache. Defeats ISP DNS poisoning on both Windows 10 and 11."
+                    "Runs local encrypted DNS (DNSCrypt-Proxy) via Cloudflare, Google & Quad9 (fastest-first) with an 8,192-entry cache. Defeats ISP DNS poisoning on both Windows 10 and 11."
             };
         }
 

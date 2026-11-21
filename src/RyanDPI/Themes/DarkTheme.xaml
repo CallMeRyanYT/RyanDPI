@@ -1,28 +1,28 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Surface & Canvas Colors -->
-    <Color x:Key="BgCanvasColor">#0B0F19</Color>
-    <Color x:Key="BgCardColor">#121928</Color>
-    <Color x:Key="BgCardAltColor">#182235</Color>
-    <Color x:Key="BgInputColor">#0E1422</Color>
-    <Color x:Key="BorderSubtleColor">#24314A</Color>
-    <Color x:Key="BorderHoverColor">#38BDF8</Color>
+    <!-- Pitch-Black & Obsidian Surface Colors -->
+    <Color x:Key="BgCanvasColor">#060608</Color>
+    <Color x:Key="BgCardColor">#0D0D11</Color>
+    <Color x:Key="BgCardAltColor">#151116</Color>
+    <Color x:Key="BgInputColor">#09080B</Color>
+    <Color x:Key="BorderSubtleColor">#2C141B</Color>
+    <Color x:Key="BorderHoverColor">#FF1E3C</Color>
 
     <!-- Typography Colors -->
-    <Color x:Key="TextPrimaryColor">#F8FAFC</Color>
-    <Color x:Key="TextSecondaryColor">#94A3B8</Color>
-    <Color x:Key="TextMutedColor">#64748B</Color>
+    <Color x:Key="TextPrimaryColor">#FAFAFC</Color>
+    <Color x:Key="TextSecondaryColor">#A69CA6</Color>
+    <Color x:Key="TextMutedColor">#6E626C</Color>
 
-    <!-- Brand & Semantic Accents -->
-    <Color x:Key="AccentCyanColor">#0EA5E9</Color>
-    <Color x:Key="AccentIndigoColor">#6366F1</Color>
-    <Color x:Key="SuccessColor">#10B981</Color>
-    <Color x:Key="SuccessBgColor">#142E27</Color>
-    <Color x:Key="WarningColor">#F59E0B</Color>
-    <Color x:Key="WarningBgColor">#2D2414</Color>
-    <Color x:Key="DangerColor">#EF4444</Color>
-    <Color x:Key="DangerBgColor">#2D151B</Color>
+    <!-- Neon Red Brand & Semantic Accents -->
+    <Color x:Key="AccentCyanColor">#FF1E3C</Color>
+    <Color x:Key="AccentIndigoColor">#B80028</Color>
+    <Color x:Key="SuccessColor">#00E676</Color>
+    <Color x:Key="SuccessBgColor">#082417</Color>
+    <Color x:Key="WarningColor">#FFB020</Color>
+    <Color x:Key="WarningBgColor">#261A08</Color>
+    <Color x:Key="DangerColor">#FF2E4D</Color>
+    <Color x:Key="DangerBgColor">#290A12</Color>
 
     <!-- Solid Brushes -->
     <SolidColorBrush x:Key="BgCanvasBrush" Color="{StaticResource BgCanvasColor}"/>
@@ -45,25 +45,25 @@
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
     <SolidColorBrush x:Key="DangerBgBrush" Color="{StaticResource DangerBgColor}"/>
 
-    <!-- Gradients -->
+    <!-- Neon Red Gradients -->
     <LinearGradientBrush x:Key="BrandGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#0EA5E9" Offset="0"/>
-        <GradientStop Color="#6366F1" Offset="1"/>
+        <GradientStop Color="#FF1E3C" Offset="0"/>
+        <GradientStop Color="#C9002B" Offset="1"/>
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="BrandGradientHoverBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#38BDF8" Offset="0"/>
-        <GradientStop Color="#818CF8" Offset="1"/>
+        <GradientStop Color="#FF3D59" Offset="0"/>
+        <GradientStop Color="#FF1438" Offset="1"/>
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="SuccessGradientBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#10B981" Offset="0"/>
-        <GradientStop Color="#059669" Offset="1"/>
+        <GradientStop Color="#00D26A" Offset="0"/>
+        <GradientStop Color="#009E4F" Offset="1"/>
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="SuccessGradientHoverBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#34D399" Offset="0"/>
-        <GradientStop Color="#10B981" Offset="1"/>
+        <GradientStop Color="#22F087" Offset="0"/>
+        <GradientStop Color="#00C261" Offset="1"/>
     </LinearGradientBrush>
 
 </ResourceDictionary>
