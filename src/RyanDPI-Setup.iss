@@ -2,7 +2,7 @@
 ; Requires Inno Setup 6
 
 #define MyAppName "RyanDPI"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.0.1"
 #define MyAppPublisher "RyanDPI"
 #define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
 #define MyAppExeName "RyanDPI.exe"
@@ -139,6 +139,7 @@ begin
 
     // Stop and remove RyanDPI and any legacy services
     StopAndDeleteService('ProxiFyreService');
+    StopAndDeleteService('RyanDpiEngine');
     StopAndDeleteService('RyanDPI');
     StopAndDeleteService('dnscrypt-proxy');
     StopAndDeleteService('ByeDPI');
@@ -154,10 +155,16 @@ begin
     Exec('schtasks.exe', '/delete /tn "WireSockRefresh" /f', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Remove firewall rules
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine TCP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine UDP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router TCP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router UDP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS TCP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS UDP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 

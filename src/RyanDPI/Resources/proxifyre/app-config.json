@@ -13,10 +13,15 @@
     }
   ],
   "excludes": [
+    "RyanDpiEngine",
+    "ciadpi",
     "ciadpi.exe",
     "C:\\Program Files\\RyanDPI\\engine\\byedpi\\ciadpi.exe",
+    "ProxiFyreService",
+    "ProxiFyre",
     "ProxiFyre.exe",
     "C:\\Program Files\\RyanDPI\\engine\\proxifyre\\ProxiFyre.exe",
+    "dnscrypt-proxy",
     "dnscrypt-proxy.exe",
     "C:\\Program Files\\RyanDPI\\engine\\dnscrypt\\dnscrypt-proxy.exe",
     "System"

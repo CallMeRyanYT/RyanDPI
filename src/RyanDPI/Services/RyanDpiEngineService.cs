@@ -12,7 +12,9 @@ namespace RyanDPI.Services
 {
     public sealed class RyanDpiEngineService
     {
-        public const string EngineServiceName = "RyanDPI";
+        // Distinct from RyanDPI.exe so ProxiFyre's service-tag exclusion ("RyanDpiEngine")
+        // excludes ciadpi's Windows service without excluding the RyanDPI.exe GUI self-test!
+        public const string EngineServiceName = "RyanDpiEngine";
         public const string RouterServiceName = "ProxiFyreService";
         public const string NdisDriverServiceName = "NDISRD";
 
@@ -31,6 +33,7 @@ namespace RyanDPI.Services
 
         private static readonly string[] LegacyServices =
         {
+            "RyanDPI", // Previous v2.0.0 service name (migrated cleanly to RyanDpiEngine)
             "ByeDPI",
             "GoodbyeDPI",
             "zapret",
@@ -343,6 +346,9 @@ namespace RyanDPI.Services
                 // Apply DNS mode change
                 var bundledDnsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "dnscrypt-proxy");
                 await _dnsService.ApplyDnsModeAsync(settings.DnsMode, bundledDnsDir);
+
+                // Refresh firewall rules (e.g. if dnscrypt-proxy was just enabled)
+                await ConfigureFirewallRulesAsync();
 
                 // Restart engine & router cleanly
                 return await StartAsync(settings);
@@ -735,15 +741,23 @@ namespace RyanDPI.Services
 
         public static string BuildProxiFyreConfigJson(RyanDpiSettings settings)
         {
-            // Mandatory loop-prevention exclusions:
-            // ciadpi.exe, ProxiFyre.exe, dnscrypt-proxy.exe, and System (kernel sockets)
-            // MUST NEVER be routed back into 127.0.0.1:1080!
+            // CRITICAL loop-prevention exclusions:
+            // For Windows services (tag != 0), ProxiFyre's owner_module_resolver resolves
+            // BOTH base_name and full_path to the WINDOWS SERVICE NAME via I_QueryTagInformation
+            // (e.g. "RyanDpiEngine", "dnscrypt-proxy", "ProxiFyreService") rather than "ciadpi.exe"!
+            // Excluding both the exact Windows service names AND the executable names/paths
+            // guarantees zero infinite routing loops in both service mode and interactive mode.
             var excludes = new List<string>
             {
+                EngineServiceName,
+                "ciadpi",
                 "ciadpi.exe",
                 EngineCiadpiExe,
+                RouterServiceName,
+                "ProxiFyre",
                 "ProxiFyre.exe",
                 EngineProxiFyreExe,
+                DnsService.DnsCryptServiceName,
                 "dnscrypt-proxy.exe",
                 EngineDnsCryptExe,
                 "System"
@@ -938,11 +952,22 @@ namespace RyanDPI.Services
                 foreach (var (name, prog) in rules)
                 {
                     if (!File.Exists(prog)) continue;
-                    CommandRunner.Run("netsh.exe", $"advfirewall firewall add rule name=\"{name} In\" dir=in action=allow program=\"{prog}\" enable=yes", 10000);
-                    CommandRunner.Run("netsh.exe", $"advfirewall firewall add rule name=\"{name} Out\" dir=out action=allow program=\"{prog}\" enable=yes", 10000);
+                    // Add explicit TCP + UDP rules across all profiles (Domain, Private, Public)
+                    // so Windows Firewall never drops packets redirected to ProxiFyre's local listener.
+                    var tcpIn = CommandRunner.Run("netsh.exe",
+                        $"advfirewall firewall add rule name=\"{name} TCP-In\" dir=in action=allow protocol=TCP profile=any program=\"{prog}\" enable=yes", 10000);
+                    var udpIn = CommandRunner.Run("netsh.exe",
+                        $"advfirewall firewall add rule name=\"{name} UDP-In\" dir=in action=allow protocol=UDP profile=any program=\"{prog}\" enable=yes", 10000);
+                    var anyOut = CommandRunner.Run("netsh.exe",
+                        $"advfirewall firewall add rule name=\"{name} Out\" dir=out action=allow profile=any program=\"{prog}\" enable=yes", 10000);
+
+                    if (tcpIn.ExitCode != 0 || udpIn.ExitCode != 0 || anyOut.ExitCode != 0)
+                    {
+                        LogService.Warn($"Firewall rule warning for {name}: tcpIn={tcpIn.ExitCode}, udpIn={udpIn.ExitCode}, out={anyOut.ExitCode}");
+                    }
                 }
 
-                LogService.Info("Windows Firewall allow rules configured.");
+                LogService.Info("Windows Firewall allow rules configured (TCP/UDP, all profiles).");
             });
         }
 
@@ -950,9 +975,9 @@ namespace RyanDPI.Services
         {
             var names = new[]
             {
-                "RyanDPI Engine In", "RyanDPI Engine Out",
-                "RyanDPI Router In", "RyanDPI Router Out",
-                "RyanDPI Encrypted DNS In", "RyanDPI Encrypted DNS Out",
+                "RyanDPI Engine TCP-In", "RyanDPI Engine UDP-In", "RyanDPI Engine In", "RyanDPI Engine Out",
+                "RyanDPI Router TCP-In", "RyanDPI Router UDP-In", "RyanDPI Router In", "RyanDPI Router Out",
+                "RyanDPI Encrypted DNS TCP-In", "RyanDPI Encrypted DNS UDP-In", "RyanDPI Encrypted DNS In", "RyanDPI Encrypted DNS Out",
                 "ProxiFyre Inbound", "ProxiFyre Outbound",
                 "ByeDPI ciadpi Inbound", "ByeDPI ciadpi Outbound"
             };

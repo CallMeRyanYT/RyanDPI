@@ -20,16 +20,16 @@ RyanDPI replaces complex multi-tool setups with a single, high-speed, system-wid
 
 ## Download & Quick Start
 
-[![Download Windows Setup](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-0EA5E9?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.0/RyanDPI-Setup-Windows-2.0.0.exe)
-[![Download Portable ZIP](https://img.shields.io/badge/Download-Portable%20(.zip)-6366F1?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.0/RyanDPI-Portable-Windows-2.0.0.zip)
+[![Download Windows Setup](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-0EA5E9?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.1/RyanDPI-Setup-Windows-2.0.1.exe)
+[![Download Portable ZIP](https://img.shields.io/badge/Download-Portable%20(.zip)-6366F1?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.1/RyanDPI-Portable-Windows-2.0.1.zip)
 
-1. Download and run **[RyanDPI-Setup-Windows-2.0.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.0/RyanDPI-Setup-Windows-2.0.0.exe)** (or extract the [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.0/RyanDPI-Portable-Windows-2.0.0.zip) and run `RyanDPI.exe`).
+1. Download and run **[RyanDPI-Setup-Windows-2.0.1.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.1/RyanDPI-Setup-Windows-2.0.1.exe)** (or extract the [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.1/RyanDPI-Portable-Windows-2.0.1.zip) and run `RyanDPI.exe`).
 2. Launch **RyanDPI** (Administrator privileges are requested automatically to manage Windows services and DNS).
 3. Click **"Install & Enable RyanDPI"**.
 4. Wait ~10 seconds for the 5-step automatic setup to complete.
 5. Click **"Run Test"** to verify Discord, Roblox, Roblox Studio API, Wattpad, and direct latency live.
 
-RyanDPI runs quietly as Windows background services (`RyanDPI`, `ProxiFyreService`, and `dnscrypt-proxy`), so everything stays unlocked automatically every time you restart your PC.
+RyanDPI runs quietly as Windows background services (`RyanDpiEngine`, `ProxiFyreService`, and `dnscrypt-proxy`), so everything stays unlocked automatically every time you restart your PC.
 
 ---
 

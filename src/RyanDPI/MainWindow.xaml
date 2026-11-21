@@ -722,7 +722,7 @@
                 <!-- About Footer -->
                 <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Padding="14,12">
                     <StackPanel>
-                        <TextBlock Text="RyanDPI v2.0.0 — System-Wide Zero-Speed-Loss DPI Bypass"
+                        <TextBlock Text="RyanDPI v2.0.1 — System-Wide Zero-Speed-Loss DPI Bypass"
                                    FontFamily="{StaticResource FontBold}"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextPrimaryBrush}"/>

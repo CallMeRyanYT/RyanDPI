@@ -38,7 +38,7 @@ namespace RyanDPI.Services
                     File.Move(path, backup);
                 }
 
-                Info("RyanDPI v2.0.0 started.");
+                Info("RyanDPI v2.0.1 started.");
             }
             catch
             {
