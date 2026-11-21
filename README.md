@@ -14,16 +14,17 @@ RyanDPI replaces complex multi-tool setups with a single, high-speed, system-wid
 - **Built-in Encrypted DNS:** Eliminates Turkish ISP DNS poisoning automatically via local **DNSCrypt-Proxy** (Google, Cloudflare & Quad9 encrypted resolvers with a 4,096-entry cache) or optional Windows 11 Native DoH.
 - **6-Stage Adaptive Bypass Strategy:** Works across Türk Telekom, Superonline, Vodafone, Türksat Kablonet, TurkNet, and mobile networks with 24-hour per-IP strategy caching and clean passthrough fallback so strict non-blocked websites never break.
 - **No WinDivert Antivirus Headaches:** Uses Windows Packet Filter (`NDISRD`) + ProxiFyre + ByeDPI instead of WinDivert.
+- **Built-in Automatic Updater:** Automatically checks GitHub Releases on startup, downloads & SHA-256 verifies new updates, silently installs them (both Windows Installer and Portable editions), relaunches RyanDPI, and upgrades background services automatically.
 - **Clean, Modern, English-Only UI:** Dark & Light themes, one-click Install/Pause/Uninstall, live inline progress bar, and a built-in **Unblock & Speed Self-Test**.
 
 ---
 
 ## Download & Quick Start
 
-[![Download Windows Setup](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-0EA5E9?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.1/RyanDPI-Setup-Windows-2.0.1.exe)
-[![Download Portable ZIP](https://img.shields.io/badge/Download-Portable%20(.zip)-6366F1?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.1/RyanDPI-Portable-Windows-2.0.1.zip)
+[![Download Windows Setup](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-0EA5E9?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.1.0/RyanDPI-Setup-Windows-2.1.0.exe)
+[![Download Portable ZIP](https://img.shields.io/badge/Download-Portable%20(.zip)-6366F1?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.1.0/RyanDPI-Portable-Windows-2.1.0.zip)
 
-1. Download and run **[RyanDPI-Setup-Windows-2.0.1.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.1/RyanDPI-Setup-Windows-2.0.1.exe)** (or extract the [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.0.1/RyanDPI-Portable-Windows-2.0.1.zip) and run `RyanDPI.exe`).
+1. Download and run **[RyanDPI-Setup-Windows-2.1.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.1.0/RyanDPI-Setup-Windows-2.1.0.exe)** (or extract the [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.1.0/RyanDPI-Portable-Windows-2.1.0.zip) and run `RyanDPI.exe`).
 2. Launch **RyanDPI** (Administrator privileges are requested automatically to manage Windows services and DNS).
 3. Click **"Install & Enable RyanDPI"**.
 4. Wait ~10 seconds for the 5-step automatic setup to complete.

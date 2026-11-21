@@ -360,6 +360,83 @@ namespace RyanDPI.Services
             }
         }
 
+        /// <summary>
+        /// Automatically refreshes staged engine binaries, ProxiFyre config, ACLs, and firewall rules
+        /// after an auto-update when RyanDPI services are already installed on the PC.
+        /// </summary>
+        public async Task<OperationResult> RefreshEngineAfterUpdateAsync(RyanDpiSettings settings)
+        {
+            try
+            {
+                var status = await GetStatusAsync();
+                bool hasOldV200Service = status.DetectedLegacyServices.Contains("RyanDPI", StringComparer.OrdinalIgnoreCase);
+                if (!status.IsInstalled && !hasOldV200Service)
+                {
+                    return new OperationResult { Success = true, Message = string.Empty };
+                }
+
+                bool wasRunning = status.IsFullyActive || status.IsPartiallyRunning || hasOldV200Service;
+                LogService.Info($"Refreshing RyanDPI background services after update (wasRunning={wasRunning}, legacyV200={hasOldV200Service})...");
+
+                await Task.Run(() =>
+                {
+                    ServiceControlHelper.StopService(RouterServiceName);
+                    ServiceControlHelper.StopService(EngineServiceName);
+                    if (hasOldV200Service)
+                    {
+                        ServiceControlHelper.StopAndDeleteService("RyanDPI");
+                    }
+                });
+
+                var stageOk = await StageEngineAndConfigAsync(settings);
+                if (!stageOk)
+                {
+                    return new OperationResult
+                    {
+                        Success = false,
+                        Message = "App updated, but refreshing background engine files failed. Click 'Reinstall / Repair'."
+                    };
+                }
+
+                await ConfigureFirewallRulesAsync();
+
+                if (hasOldV200Service || status.EngineState == ComponentState.NotInstalled || status.RouterState == ComponentState.NotInstalled)
+                {
+                    var engineOk = await InstallAndStartEngineServiceAsync(settings);
+                    var routerOk = engineOk && await InstallAndStartRouterServiceAsync();
+                    if (!wasRunning)
+                    {
+                        await StopAsync();
+                    }
+                    return new OperationResult
+                    {
+                        Success = routerOk,
+                        Message = routerOk
+                            ? "Background services upgraded cleanly."
+                            : "App updated, but restarting background services failed. Click 'Reinstall / Repair'."
+                    };
+                }
+
+                await Task.Run(() =>
+                {
+                    var binPath = settings.BuildScBinPathValue(EngineCiadpiExe);
+                    CommandRunner.Run("sc.exe", $"config {EngineServiceName} binPath= \"{binPath}\"", 15000);
+                });
+
+                if (wasRunning)
+                {
+                    return await StartAsync(settings);
+                }
+
+                return new OperationResult { Success = true, Message = "Background engine updated (currently paused)." };
+            }
+            catch (Exception ex)
+            {
+                LogService.Error($"Post-update engine refresh failed: {ex.Message}");
+                return new OperationResult { Success = false, Message = ex.Message };
+            }
+        }
+
         public async Task<OperationResult> CleanupLegacyServicesAsync(bool includeCurrentRyanDpi = false)
         {
             return await Task.Run(() =>

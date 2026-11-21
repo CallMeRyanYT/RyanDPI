@@ -10,10 +10,14 @@ namespace RyanDPI
         private static Mutex? _singleInstanceMutex;
         private const string MutexName = "Global\\RyanDPI_SingleInstance_Mutex";
 
+        public static string? UpdatedToVersion { get; private set; }
+        public static bool SkipAutoUpdateCheck { get; private set; }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
+            ParseCommandLineArgs(e.Args);
             LogService.Initialize();
 
             // Single-instance check
@@ -98,7 +102,27 @@ namespace RyanDPI
                 MessageBoxImage.Error);
         }
 
-        protected override void OnExit(ExitEventArgs e)
+        public static void ParseCommandLineArgs(string[]? args)
+        {
+            if (args == null || args.Length == 0) return;
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i].Equals("--no-update-check", StringComparison.OrdinalIgnoreCase))
+                {
+                    SkipAutoUpdateCheck = true;
+                }
+                else if (args[i].Equals("--updated", StringComparison.OrdinalIgnoreCase))
+                {
+                    SkipAutoUpdateCheck = true;
+                    UpdatedToVersion = (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+                        ? args[++i]
+                        : AutoUpdateService.GetCurrentVersionString();
+                }
+            }
+        }
+
+        public static void ReleaseSingleInstanceMutex()
         {
             try
             {
@@ -110,7 +134,11 @@ namespace RyanDPI
             {
                 // Ignore mutex cleanup error
             }
+        }
 
+        protected override void OnExit(ExitEventArgs e)
+        {
+            ReleaseSingleInstanceMutex();
             base.OnExit(e);
         }
     }

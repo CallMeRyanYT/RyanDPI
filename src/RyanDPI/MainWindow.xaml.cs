@@ -13,6 +13,8 @@ namespace RyanDPI
     public partial class MainWindow : Window
     {
         private readonly RyanDpiEngineService _engine = new();
+        private readonly AutoUpdateService _updater = new();
+        private readonly CancellationTokenSource _windowCts = new();
         private RyanDpiSettings _settings;
         private RyanDpiStatus? _currentStatus;
         private bool _isBusy;
@@ -30,6 +32,8 @@ namespace RyanDPI
             App.ApplyTheme(_settings.IsDarkTheme);
             UpdateThemeIcon();
 
+            TxtAboutVersion.Text = $"RyanDPI v{AutoUpdateService.GetCurrentVersionString()} — System-Wide Zero-Speed-Loss DPI Bypass";
+
             ListExcludes.ItemsSource = _excludedApps;
             ListSelfTestResults.ItemsSource = _selfTestItems;
 
@@ -42,10 +46,30 @@ namespace RyanDPI
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             await RefreshStatusAsync();
+
+            if (!string.IsNullOrWhiteSpace(App.UpdatedToVersion))
+            {
+                await HandlePostUpdateStartupAsync(App.UpdatedToVersion);
+                return;
+            }
+
+            if (_settings.AutoUpdateOnStartup && !App.SkipAutoUpdateCheck)
+            {
+                await CheckAndApplyUpdateAsync(isManualCheck: false);
+            }
         }
 
         protected override void OnClosed(EventArgs e)
         {
+            try
+            {
+                _windowCts.Cancel();
+                _windowCts.Dispose();
+            }
+            catch
+            {
+                // Ignore cancellation disposal errors
+            }
             LogService.LineLogged -= OnLogLineReceived;
             base.OnClosed(e);
         }
@@ -254,6 +278,7 @@ namespace RyanDPI
             BtnResetDns.IsEnabled = !busy;
             BtnCleanLegacy.IsEnabled = !busy;
             BtnToolsUninstall.IsEnabled = !busy;
+            BtnCheckUpdates.IsEnabled = !busy;
 
             PanelProgress.Visibility = (busy && showProgressCard) ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -466,6 +491,7 @@ namespace RyanDPI
             TxtCustomArgs.Text = _settings.CustomStrategyArgs;
             ChkBypassLan.IsChecked = _settings.BypassLan;
             ChkTunnelUdp.IsChecked = _settings.TunnelUdp;
+            ChkAutoUpdate.IsChecked = _settings.AutoUpdateOnStartup;
 
             _excludedApps.Clear();
             foreach (var app in _settings.ExcludedApps)
@@ -610,6 +636,7 @@ namespace RyanDPI
             _settings.CustomStrategyArgs = TxtCustomArgs.Text.Trim();
             _settings.BypassLan = ChkBypassLan.IsChecked == true;
             _settings.TunnelUdp = ChkTunnelUdp.IsChecked == true;
+            _settings.AutoUpdateOnStartup = ChkAutoUpdate.IsChecked == true;
             _settings.ExcludedApps = _excludedApps.ToList();
 
             SetBusy(true, showProgressCard: false);
@@ -720,6 +747,170 @@ namespace RyanDPI
         {
             LogService.ClearBuffer();
             TxtLogs.Clear();
+        }
+
+        private async void BtnCheckUpdates_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isBusy) return;
+            await CheckAndApplyUpdateAsync(isManualCheck: true);
+        }
+
+        #endregion
+
+        #region Auto-Updater
+
+        private async Task HandlePostUpdateStartupAsync(string updatedVersion)
+        {
+            var versionLabel = updatedVersion.StartsWith("v", StringComparison.OrdinalIgnoreCase)
+                ? updatedVersion
+                : $"v{updatedVersion}";
+
+            LogService.Info($"RyanDPI launched after automatic update to {versionLabel}.");
+
+            if (_currentStatus != null && (_currentStatus.IsInstalled ||
+                _currentStatus.DetectedLegacyServices.Contains("RyanDPI", StringComparer.OrdinalIgnoreCase)))
+            {
+                SetBusy(true, showProgressCard: true);
+                TxtProgressTitle.Text = $"Finishing update to {versionLabel}...";
+                TxtProgressStep.Text = "Syncing engine";
+                TxtProgressDetail.Text = "Updating background RyanDPI engine binaries, config, and firewall rules...";
+                ProgressInstall.Value = 65;
+
+                try
+                {
+                    var refreshRes = await _engine.RefreshEngineAfterUpdateAsync(_settings);
+                    ProgressInstall.Value = 100;
+                    ShowNotice(
+                        refreshRes.Success
+                            ? $"RyanDPI automatically updated to {versionLabel} and refreshed background services!"
+                            : $"Updated to {versionLabel}: {refreshRes.Message}",
+                        refreshRes.Success);
+                }
+                finally
+                {
+                    SetBusy(false);
+                    await RefreshStatusAsync();
+                }
+            }
+            else
+            {
+                ShowNotice($"RyanDPI automatically updated to {versionLabel}!", isSuccess: true);
+            }
+        }
+
+        private async Task CheckAndApplyUpdateAsync(bool isManualCheck)
+        {
+            var ct = _windowCts.Token;
+            if (ct.IsCancellationRequested) return;
+
+            if (isManualCheck)
+            {
+                SetBusy(true, showProgressCard: false);
+                BtnCheckUpdates.Content = "Checking...";
+            }
+
+            UpdateCheckResult check;
+            try
+            {
+                LogService.Info("Checking GitHub Releases for RyanDPI updates...");
+                check = await _updater.CheckForUpdateAsync(ct);
+            }
+            catch
+            {
+                if (isManualCheck)
+                {
+                    BtnCheckUpdates.Content = "Check Updates";
+                    SetBusy(false);
+                }
+                return;
+            }
+
+            if (ct.IsCancellationRequested) return;
+
+            if (!check.Success)
+            {
+                LogService.Warn($"Update check skipped: {check.ErrorMessage}");
+                if (isManualCheck)
+                {
+                    BtnCheckUpdates.Content = "Check Updates";
+                    SetBusy(false);
+                    ShowNotice($"Could not check for updates: {check.ErrorMessage}", isSuccess: false);
+                    NavHome.IsChecked = true;
+                }
+                return;
+            }
+
+            if (!check.UpdateAvailable)
+            {
+                LogService.Info($"RyanDPI v{check.CurrentVersion} is up to date.");
+                if (isManualCheck)
+                {
+                    BtnCheckUpdates.Content = "Check Updates";
+                    SetBusy(false);
+                    ShowNotice($"You are on the latest version (RyanDPI v{check.CurrentVersion}).", isSuccess: true);
+                    NavHome.IsChecked = true;
+                }
+                return;
+            }
+
+            // If user already started an install/uninstall during silent startup check, don't interrupt it
+            if (!isManualCheck && _isBusy)
+            {
+                LogService.Info($"Update v{check.LatestVersion} available, deferring while another task is running.");
+                return;
+            }
+
+            LogService.Info($"New RyanDPI update detected: v{check.CurrentVersion} -> v{check.LatestVersion} ({check.AssetName}, mode={check.InstallMode}).");
+
+            NavHome.IsChecked = true;
+            PanelNotice.Visibility = Visibility.Collapsed;
+            SetBusy(true, showProgressCard: true);
+            BtnCheckUpdates.Content = "Updating...";
+            TxtProgressTitle.Text = $"Updating RyanDPI to v{check.LatestVersion}...";
+            TxtProgressStep.Text = "Starting";
+            TxtProgressDetail.Text = $"Found new release v{check.LatestVersion}. Downloading update automatically...";
+            ProgressInstall.Value = 5;
+
+            var progress = new Progress<UpdateProgress>(u =>
+            {
+                TxtProgressTitle.Text = u.Title;
+                TxtProgressStep.Text = u.StepLabel;
+                TxtProgressDetail.Text = u.Detail;
+                ProgressInstall.Value = u.Percent;
+            });
+
+            try
+            {
+                var (ok, filePath, err) = await _updater.DownloadAndVerifyUpdateAsync(check, progress, ct);
+                if (!ok || string.IsNullOrWhiteSpace(filePath))
+                {
+                    LogService.Error($"Auto-update download failed: {err}");
+                    ShowNotice($"Automatic update to v{check.LatestVersion} failed: {err}", isSuccess: false);
+                    return;
+                }
+
+                var launched = _updater.LaunchUpdaterAndPrepareExit(check, filePath);
+                if (!launched)
+                {
+                    ShowNotice($"Downloaded v{check.LatestVersion}, but could not launch the installer automatically.", isSuccess: false);
+                    return;
+                }
+
+                // Exit immediately so the detached updater applies the update and relaunches the new version
+                Application.Current.Shutdown();
+            }
+            catch (OperationCanceledException)
+            {
+                // Window closed during download
+            }
+            finally
+            {
+                if (!ct.IsCancellationRequested)
+                {
+                    BtnCheckUpdates.Content = "Check Updates";
+                    SetBusy(false);
+                }
+            }
         }
 
         #endregion

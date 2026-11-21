@@ -530,7 +530,7 @@
                                               VerticalAlignment="Center"/>
                                 </Grid>
 
-                                <Grid>
+                                <Grid Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -542,6 +542,21 @@
                                                    FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" x:Name="ChkTunnelUdp" Style="{StaticResource ToggleSwitchStyle}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock Text="Auto-Update on Startup" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Automatically download, verify, and install new RyanDPI releases when the app opens."
+                                                   FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" x:Name="ChkAutoUpdate" Style="{StaticResource ToggleSwitchStyle}"
                                               VerticalAlignment="Center"/>
                                 </Grid>
                             </StackPanel>
@@ -719,19 +734,33 @@
                     </Grid>
                 </Border>
 
-                <!-- About Footer -->
+                <!-- About & Updates Footer -->
                 <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Padding="14,12">
-                    <StackPanel>
-                        <TextBlock Text="RyanDPI v2.0.1 — System-Wide Zero-Speed-Loss DPI Bypass"
-                                   FontFamily="{StaticResource FontBold}"
-                                   FontSize="12"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
-                        <TextBlock Text="100% local DPI desynchronization (no remote VPN servers). Built with ByeDPI, ProxiFyre &amp; DNSCrypt-Proxy for zero-speed-loss system-wide unblocking."
-                                   FontSize="11"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,3,0,0"/>
-                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock x:Name="TxtAboutVersion"
+                                       Text="RyanDPI v2.1.0 — System-Wide Zero-Speed-Loss DPI Bypass"
+                                       FontFamily="{StaticResource FontBold}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="100% local DPI desynchronization (no remote VPN servers). Built with ByeDPI, ProxiFyre &amp; DNSCrypt-Proxy."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,3,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                x:Name="BtnCheckUpdates"
+                                Content="Check Updates"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Height="32" Padding="12,0" FontSize="11.5"
+                                VerticalAlignment="Center"
+                                Click="BtnCheckUpdates_Click"/>
+                    </Grid>
                 </Border>
             </Grid>
 

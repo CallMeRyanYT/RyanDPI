@@ -41,6 +41,7 @@ namespace RyanDPI.Models
             "--auto=torst,redirect,ssl_err";
 
         public bool IsDarkTheme { get; set; } = true;
+        public bool AutoUpdateOnStartup { get; set; } = true;
         public DnsProtectionMode DnsMode { get; set; } = DnsProtectionMode.EncryptedDnsProxy;
         public BypassProfile Profile { get; set; } = BypassProfile.AutoUniversal;
         public string CustomStrategyArgs { get; set; } = AutoUniversalStrategy;

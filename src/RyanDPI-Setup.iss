@@ -2,7 +2,7 @@
 ; Requires Inno Setup 6
 
 #define MyAppName "RyanDPI"
-#define MyAppVersion "2.0.1"
+#define MyAppVersion "2.1.0"
 #define MyAppPublisher "RyanDPI"
 #define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
 #define MyAppExeName "RyanDPI.exe"
@@ -104,7 +104,7 @@ var
   ErrorCode: Integer;
 begin
   Result := True;
-  if not IsDotNet8DesktopInstalled then
+  if (not WizardSilent) and (not IsDotNet8DesktopInstalled) then
   begin
     if MsgBox(
       'RyanDPI requires Microsoft .NET 8.0 Desktop Runtime (x64), which was not detected on this PC.' + #13#10 + #13#10 +
