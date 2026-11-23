@@ -102,7 +102,9 @@ $active = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
     $_.Name -notlike '*vEthernet*' -and
     $_.InterfaceDescription -notlike '*TAP*' -and
     $_.InterfaceDescription -notlike '*TUN*' -and
-    $_.InterfaceDescription -notlike '*VPN*'
+    $_.InterfaceDescription -notlike '*VPN*' -and
+    $_.InterfaceDescription -notlike '*Tailscale*' -and
+    $_.InterfaceDescription -notlike '*Bluetooth*'
 }
 foreach ($a in $active) {
     if (-not $seen.ContainsKey($a.InterfaceIndex)) {
@@ -277,8 +279,25 @@ ipconfig /flushdns | Out-Null
 
         private static bool SetAdaptersToLocalDnsCrypt()
         {
+            // Configure BOTH connected AND disconnected physical Ethernet/Wi-Fi adapters
+            // (plus any active non-virtual adapters like USB tethering) so switching between
+            // Home Ethernet and Work Wi-Fi always has encrypted DNS pre-configured!
             const string psScript = @"
-$adapters = Get-NetAdapter | Where-Object {
+$seen = @{}
+$targets = @()
+
+$phys = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object {
+    $_.InterfaceDescription -notlike '*Bluetooth*' -and
+    $_.Name -notlike '*Bluetooth*'
+}
+foreach ($a in $phys) {
+    if (-not $seen.ContainsKey($a.InterfaceIndex)) {
+        $seen[$a.InterfaceIndex] = $true
+        $targets += $a
+    }
+}
+
+$active = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
     $_.Status -eq 'Up' -and
     $_.InterfaceDescription -notlike '*Virtual*' -and
     $_.InterfaceDescription -notlike '*Hyper-V*' -and
@@ -286,9 +305,18 @@ $adapters = Get-NetAdapter | Where-Object {
     $_.Name -notlike '*vEthernet*' -and
     $_.InterfaceDescription -notlike '*TAP*' -and
     $_.InterfaceDescription -notlike '*TUN*' -and
-    $_.InterfaceDescription -notlike '*VPN*'
+    $_.InterfaceDescription -notlike '*VPN*' -and
+    $_.InterfaceDescription -notlike '*Tailscale*' -and
+    $_.InterfaceDescription -notlike '*Bluetooth*'
 }
-foreach ($adapter in $adapters) {
+foreach ($a in $active) {
+    if (-not $seen.ContainsKey($a.InterfaceIndex)) {
+        $seen[$a.InterfaceIndex] = $true
+        $targets += $a
+    }
+}
+
+foreach ($adapter in $targets) {
     try {
         Set-DnsClientServerAddress -InterfaceIndex $adapter.InterfaceIndex -ServerAddresses '127.0.0.1', '::1' -ErrorAction SilentlyContinue
         netsh interface ip set dns ""$($adapter.Name)"" static 127.0.0.1 | Out-Null
@@ -306,14 +334,28 @@ Clear-DnsClientCache -ErrorAction SilentlyContinue
 ipconfig /flushdns | Out-Null
 ";
             var res = CommandRunner.RunPowerShell(psScript, 45000);
-            LogService.Info($"Configured active adapters to 127.0.0.1 / ::1 (exit code {res.ExitCode}).");
+            LogService.Info($"Configured physical & active adapters (Ethernet + Wi-Fi) to 127.0.0.1 / ::1 (exit code {res.ExitCode}).");
             return res.ExitCode == 0;
         }
 
         private static bool ApplyWindowsNativeDoH()
         {
             const string psScript = @"
-$adapters = Get-NetAdapter | Where-Object {
+$seen = @{}
+$targets = @()
+
+$phys = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object {
+    $_.InterfaceDescription -notlike '*Bluetooth*' -and
+    $_.Name -notlike '*Bluetooth*'
+}
+foreach ($a in $phys) {
+    if (-not $seen.ContainsKey($a.InterfaceIndex)) {
+        $seen[$a.InterfaceIndex] = $true
+        $targets += $a
+    }
+}
+
+$active = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
     $_.Status -eq 'Up' -and
     $_.InterfaceDescription -notlike '*Virtual*' -and
     $_.InterfaceDescription -notlike '*Hyper-V*' -and
@@ -321,10 +363,18 @@ $adapters = Get-NetAdapter | Where-Object {
     $_.Name -notlike '*vEthernet*' -and
     $_.InterfaceDescription -notlike '*TAP*' -and
     $_.InterfaceDescription -notlike '*TUN*' -and
-    $_.InterfaceDescription -notlike '*VPN*'
+    $_.InterfaceDescription -notlike '*VPN*' -and
+    $_.InterfaceDescription -notlike '*Tailscale*' -and
+    $_.InterfaceDescription -notlike '*Bluetooth*'
+}
+foreach ($a in $active) {
+    if (-not $seen.ContainsKey($a.InterfaceIndex)) {
+        $seen[$a.InterfaceIndex] = $true
+        $targets += $a
+    }
 }
 
-foreach ($adapter in $adapters) {
+foreach ($adapter in $targets) {
     $adapterName = $adapter.Name
     $adapterGuid = $adapter.InterfaceGuid
 
@@ -362,7 +412,7 @@ Clear-DnsClientCache -ErrorAction SilentlyContinue
 ipconfig /flushdns | Out-Null
 ";
             var res = CommandRunner.RunPowerShell(psScript, 45000);
-            LogService.Info($"Configured Windows Native DoH on active adapters (exit code {res.ExitCode}).");
+            LogService.Info($"Configured Windows Native DoH on physical & active adapters (exit code {res.ExitCode}).");
             return res.ExitCode == 0;
         }
 

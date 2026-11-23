@@ -3,6 +3,8 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Security;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Win32;
@@ -17,6 +19,7 @@ namespace RyanDPI.Services
         public const string EngineServiceName = "RyanDpiEngine";
         public const string RouterServiceName = "ProxiFyreService";
         public const string NdisDriverServiceName = "NDISRD";
+        public const string NetworkWatchTaskName = "RyanDpiNetworkWatch";
 
         public static readonly string InstallRootDir =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "RyanDPI");
@@ -30,6 +33,8 @@ namespace RyanDPI.Services
         public static readonly string EngineProxiFyreExe = Path.Combine(EngineProxiFyreDir, "ProxiFyre.exe");
         public static readonly string EngineProxiFyreConfig = Path.Combine(EngineProxiFyreDir, "app-config.json");
         public static readonly string EngineDnsCryptExe = Path.Combine(EngineDnsCryptDir, "dnscrypt-proxy.exe");
+        public static readonly string EngineNetworkWatchScript = Path.Combine(EngineRootDir, "network-watch.ps1");
+        public static readonly string EngineLastNetworkStateFile = Path.Combine(EngineRootDir, "last_net.txt");
 
         private static readonly string[] LegacyServices =
         {
@@ -191,6 +196,7 @@ namespace RyanDPI.Services
                 {
                     if (ndisNeedsReboot)
                     {
+                        await ConfigureNetworkWatchTaskAsync(settings);
                         LogService.Warn("ProxiFyreService is installed and will activate automatically after reboot once NDISRD initializes.");
                         return new OperationResult
                         {
@@ -206,6 +212,8 @@ namespace RyanDPI.Services
                         Message = LocalizationService.T("Msg_RouterStartFailed")
                     };
                 }
+
+                await ConfigureNetworkWatchTaskAsync(settings);
 
                 LogService.Info("=== RyanDPI installed and running smoothly across all applications ===");
                 return new OperationResult
@@ -347,8 +355,9 @@ namespace RyanDPI.Services
                 var bundledDnsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "dnscrypt-proxy");
                 await _dnsService.ApplyDnsModeAsync(settings.DnsMode, bundledDnsDir);
 
-                // Refresh firewall rules (e.g. if dnscrypt-proxy was just enabled)
+                // Refresh firewall rules & network-switch watcher (e.g. if DNS mode changed)
                 await ConfigureFirewallRulesAsync();
+                await ConfigureNetworkWatchTaskAsync(settings);
 
                 // Restart engine & router cleanly
                 return await StartAsync(settings);
@@ -405,6 +414,7 @@ namespace RyanDPI.Services
                 }
 
                 await ConfigureFirewallRulesAsync();
+                await ConfigureNetworkWatchTaskAsync(settings);
 
                 if (hasOldV200Service || status.EngineState == ComponentState.NotInstalled || status.RouterState == ComponentState.NotInstalled)
                 {
@@ -427,6 +437,8 @@ namespace RyanDPI.Services
                 {
                     var binPath = settings.BuildScBinPathValue(EngineCiadpiExe);
                     CommandRunner.Run("sc.exe", $"config {EngineServiceName} binPath= \"{binPath}\"", 15000);
+                    // Use delayed-auto on ProxiFyreService so Wi-Fi/DHCP settles on boot before binding
+                    CommandRunner.Run("sc.exe", $"config {RouterServiceName} start= delayed-auto", 10000);
                 });
 
                 if (wasRunning)
@@ -455,6 +467,7 @@ namespace RyanDPI.Services
 
                     if (includeCurrentRyanDpi)
                     {
+                        RemoveNetworkWatchTask();
                         ServiceControlHelper.StopAndDeleteService(RouterServiceName);
                         ServiceControlHelper.StopAndDeleteService(EngineServiceName);
                     }
@@ -1013,9 +1026,9 @@ namespace RyanDPI.Services
             {
                 ServiceControlHelper.StopAndDeleteService(RouterServiceName);
 
-                LogService.Info($"Registering {RouterServiceName} (depends on NDISRD + {EngineServiceName})...");
+                LogService.Info($"Registering {RouterServiceName} (delayed-auto, depends on NDISRD + {EngineServiceName})...");
                 var createRes = await CreateServiceWithRetryAsync(
-                    $"create {RouterServiceName} binPath= \"\\\"{EngineProxiFyreExe}\\\"\" start= auto depend= {NdisDriverServiceName}/{EngineServiceName} DisplayName= \"RyanDPI Router (ProxiFyre)\"");
+                    $"create {RouterServiceName} binPath= \"\\\"{EngineProxiFyreExe}\\\"\" start= delayed-auto depend= {NdisDriverServiceName}/{EngineServiceName} DisplayName= \"RyanDPI Router (ProxiFyre)\"");
 
                 if (createRes.ExitCode != 0)
                 {
@@ -1123,6 +1136,223 @@ namespace RyanDPI.Services
             {
                 CommandRunner.Run("netsh.exe", $"advfirewall firewall delete rule name=\"{name}\"", 8000);
             }
+        }
+
+        /// <summary>
+        /// Registers a zero-CPU, event-triggered Windows Scheduled Task (Event 10000: Network Connected)
+        /// so switching between Ethernet, Wi-Fi, USB tethering, or booting on Wi-Fi automatically
+        /// rebinds ProxiFyreService, refreshes DNS, and clears stale per-ISP cache without needing Repair.
+        /// </summary>
+        private static async Task ConfigureNetworkWatchTaskAsync(RyanDpiSettings settings)
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(EngineRootDir);
+
+                    var scriptContent = BuildNetworkWatchScript(settings.DnsMode);
+                    File.WriteAllText(EngineNetworkWatchScript, scriptContent, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+                    // Record current active route signature so switching networks later is detected accurately
+                    var captureSigScript = $@"
+$r = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Sort-Object RouteMetric, InterfaceMetric | Select-Object -First 1
+if ($r) {{
+    $ip = (Get-NetIPAddress -InterfaceIndex $r.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1).IPAddress
+    ""$($r.InterfaceIndex)|$ip|$($r.NextHop)"" | Set-Content -Path '{EngineLastNetworkStateFile.Replace("'", "''")}' -Encoding UTF8 -Force
+}}
+";
+                    CommandRunner.RunPowerShell(captureSigScript, 10000);
+
+                    var xmlContent = BuildNetworkWatchTaskXml(EngineNetworkWatchScript);
+                    var xmlTempPath = Path.Combine(Path.GetTempPath(), $"ryandpi_netwatch_{Environment.ProcessId}.xml");
+                    File.WriteAllText(xmlTempPath, xmlContent, Encoding.Unicode);
+
+                    try
+                    {
+                        var res = CommandRunner.Run("schtasks.exe", $"/Create /TN \"{NetworkWatchTaskName}\" /XML \"{xmlTempPath}\" /F", 15000);
+                        if (res.ExitCode == 0)
+                        {
+                            LogService.Info("Configured automatic Wi-Fi / network-switch self-healing task (RyanDpiNetworkWatch).");
+                        }
+                        else
+                        {
+                            LogService.Warn($"Could not register {NetworkWatchTaskName} scheduled task (exit {res.ExitCode}): {res.CombinedOutput}");
+                        }
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(xmlTempPath)) File.Delete(xmlTempPath); } catch { }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogService.Warn($"Network watcher setup warning: {ex.Message}");
+                }
+            });
+        }
+
+        private static void RemoveNetworkWatchTask()
+        {
+            CommandRunner.Run("schtasks.exe", $"/Delete /TN \"{NetworkWatchTaskName}\" /F", 10000);
+            try
+            {
+                if (File.Exists(EngineNetworkWatchScript)) File.Delete(EngineNetworkWatchScript);
+                if (File.Exists(EngineLastNetworkStateFile)) File.Delete(EngineLastNetworkStateFile);
+            }
+            catch
+            {
+                // Non-fatal
+            }
+        }
+
+        public static string BuildNetworkWatchScript(DnsProtectionMode dnsMode)
+        {
+            var stateFileEsc = EngineLastNetworkStateFile.Replace("'", "''");
+            var dnsModeName = dnsMode.ToString();
+
+            return $@"# RyanDPI Automatic Wi-Fi / Network-Switch Self-Healing Helper
+$ErrorActionPreference = 'SilentlyContinue'
+
+# Respect Pause: do nothing if RyanDpiEngine is not running
+$engineSvc = Get-Service -Name '{EngineServiceName}' -ErrorAction SilentlyContinue
+if (-not $engineSvc -or $engineSvc.Status -ne 'Running') {{ exit 0 }}
+
+# Find active IPv4 default gateway route (ignore virtual/VPN-only noise when no real internet route exists)
+$routes = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Sort-Object RouteMetric, InterfaceMetric
+$route = $null
+$adapter = $null
+foreach ($cand in $routes) {{
+    $a = Get-NetAdapter -InterfaceIndex $cand.InterfaceIndex -ErrorAction SilentlyContinue
+    if ($a -and $a.Status -eq 'Up' -and
+        $a.InterfaceDescription -notlike '*Virtual*' -and
+        $a.InterfaceDescription -notlike '*Hyper-V*' -and
+        $a.InterfaceDescription -notlike '*WSL*' -and
+        $a.Name -notlike '*vEthernet*' -and
+        $a.InterfaceDescription -notlike '*TAP*' -and
+        $a.InterfaceDescription -notlike '*TUN*' -and
+        $a.InterfaceDescription -notlike '*VPN*' -and
+        $a.InterfaceDescription -notlike '*Tailscale*' -and
+        $a.InterfaceDescription -notlike '*Bluetooth*') {{
+        $route = $cand
+        $adapter = $a
+        break
+    }}
+}}
+if (-not $route -or -not $adapter) {{ exit 0 }}
+
+$ipv4 = (Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1).IPAddress
+if ([string]::IsNullOrWhiteSpace($ipv4) -or $ipv4.StartsWith('169.254.')) {{ exit 0 }}
+
+$currentSig = ""$($route.InterfaceIndex)|$ipv4|$($route.NextHop)""
+$stateFile = '{stateFileEsc}'
+$lastSig = if (Test-Path $stateFile) {{ (Get-Content -Path $stateFile -TotalCount 1 -ErrorAction SilentlyContinue).Trim() }} else {{ '' }}
+
+$routerSvc = Get-Service -Name '{RouterServiceName}' -ErrorAction SilentlyContinue
+$dnsSvc = Get-Service -Name '{DnsService.DnsCryptServiceName}' -ErrorAction SilentlyContinue
+$dnsMode = '{dnsModeName}'
+
+$networkChanged = ($currentSig -ne $lastSig)
+$routerStopped = ($routerSvc -and $routerSvc.Status -ne 'Running')
+$dnsStopped = ($dnsMode -eq 'EncryptedDnsProxy' -and $dnsSvc -and $dnsSvc.Status -ne 'Running')
+
+# Ensure newly connected adapter (e.g. Work Wi-Fi or USB hotspot) always has RyanDPI DNS applied
+$dnsNeedsApply = $false
+if ($dnsMode -eq 'EncryptedDnsProxy') {{
+    $curDns = (Get-DnsClientServerAddress -InterfaceIndex $adapter.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses
+    if (-not $curDns -or $curDns[0] -ne '127.0.0.1') {{ $dnsNeedsApply = $true }}
+}}
+
+if (-not $networkChanged -and -not $routerStopped -and -not $dnsStopped -and -not $dnsNeedsApply) {{
+    exit 0
+}}
+
+Set-Content -Path $stateFile -Value $currentSig -Encoding UTF8 -Force
+
+if ($dnsMode -eq 'EncryptedDnsProxy') {{
+    if ($dnsStopped) {{
+        Start-Service -Name '{DnsService.DnsCryptServiceName}' -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 600
+    }}
+    if ($dnsNeedsApply -or $networkChanged) {{
+        Set-DnsClientServerAddress -InterfaceIndex $adapter.InterfaceIndex -ServerAddresses '127.0.0.1', '::1' -ErrorAction SilentlyContinue
+        netsh interface ip set dns ""$($adapter.Name)"" static 127.0.0.1 | Out-Null
+        netsh interface ipv6 set dns ""$($adapter.Name)"" static ::1 | Out-Null
+        Clear-DnsClientCache -ErrorAction SilentlyContinue
+        ipconfig /flushdns | Out-Null
+    }}
+}} elseif ($dnsMode -eq 'WindowsNativeDoH' -and $networkChanged) {{
+    Set-DnsClientServerAddress -InterfaceIndex $adapter.InterfaceIndex -ServerAddresses '8.8.8.8', '9.9.9.9', '2001:4860:4860::8888', '2620:fe::9' -ErrorAction SilentlyContinue
+    Clear-DnsClientCache -ErrorAction SilentlyContinue
+    ipconfig /flushdns | Out-Null
+}}
+
+# Re-check RyanDpiEngine wasn't paused while we were checking
+$engineSvc = Get-Service -Name '{EngineServiceName}' -ErrorAction SilentlyContinue
+if (-not $engineSvc -or $engineSvc.Status -ne 'Running') {{ exit 0 }}
+
+if ($networkChanged) {{
+    # Cleanly rebind ProxiFyre WinpkFilter to the new Wi-Fi/Ethernet adapter and clear stale ISP cache in ciadpi
+    Stop-Service -Name '{RouterServiceName}' -Force -ErrorAction SilentlyContinue
+    Restart-Service -Name '{EngineServiceName}' -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+    Start-Service -Name '{RouterServiceName}' -ErrorAction SilentlyContinue
+}} elseif ($routerStopped) {{
+    Start-Service -Name '{RouterServiceName}' -ErrorAction SilentlyContinue
+}}
+";
+        }
+
+        public static string BuildNetworkWatchTaskXml(string scriptPath)
+        {
+            var escapedArgs = SecurityElement.Escape(
+                $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"");
+
+            return $@"<?xml version=""1.0"" encoding=""UTF-16""?>
+<Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
+  <RegistrationInfo>
+    <Description>Automatically rebinds RyanDPI router and encrypted DNS when switching between Ethernet, Wi-Fi, or waking from sleep.</Description>
+    <Author>RyanDPI</Author>
+  </RegistrationInfo>
+  <Triggers>
+    <EventTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT3S</Delay>
+      <Subscription>&lt;QueryList&gt;&lt;Query Id=&quot;0&quot; Path=&quot;Microsoft-Windows-NetworkProfile/Operational&quot;&gt;&lt;Select Path=&quot;Microsoft-Windows-NetworkProfile/Operational&quot;&gt;*[System[(EventID=10000)]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>
+    </EventTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id=""Author"">
+      <UserId>S-1-5-18</UserId>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>true</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT1M</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context=""Author"">
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>{escapedArgs}</Arguments>
+    </Exec>
+  </Actions>
+</Task>";
         }
 
         private static void CleanupLegacyDiscordDrover()

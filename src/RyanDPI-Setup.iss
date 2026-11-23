@@ -2,7 +2,7 @@
 ; Requires Inno Setup 6
 
 #define MyAppName "RyanDPI"
-#define MyAppVersion "2.3.1"
+#define MyAppVersion "2.3.2"
 #define MyAppPublisher "RyanDPI"
 #define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
 #define MyAppExeName "RyanDPI.exe"
@@ -170,6 +170,7 @@ begin
     StopAndDeleteService('wiresock-client-service');
     StopAndDeleteService('WireSockAppService');
     StopAndDeleteService('WireSockConnectService');
+    Exec('schtasks.exe', '/delete /tn "RyanDpiNetworkWatch" /f', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('schtasks.exe', '/delete /tn "WireSockRefresh" /f', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Remove firewall rules
