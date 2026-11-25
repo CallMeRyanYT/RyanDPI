@@ -6,6 +6,17 @@ dist/
 *.suo
 *.pdb
 
+# Android Gradle & Signing
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/signing.properties
+*.jks
+*.keystore
+*.apk
+*.aab
+
 # IDE
 .vs/
 .vscode/

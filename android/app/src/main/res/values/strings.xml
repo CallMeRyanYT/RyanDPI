@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RyanDPI</string>
+    <string name="vpn_channel_name">RyanDPI Bypass Tunnel</string>
+    <string name="vpn_channel_desc">Persistent notification while local DPI bypass is active</string>
+</resources>
