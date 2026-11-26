@@ -23,9 +23,7 @@ namespace RyanDPI.Services
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8
+                    CreateNoWindow = true
                 };
 
                 if (!string.IsNullOrWhiteSpace(workingDirectory))

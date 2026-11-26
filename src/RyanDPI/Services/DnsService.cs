@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using RyanDPI.Models;
@@ -476,63 +477,198 @@ ipconfig /flushdns | Out-Null
 
     internal static class ServiceControlHelper
     {
-        // Strictly parse ONLY the STATE line so TYPE/EXIT_CODE/CHECKPOINT digits can never false-match!
-        private static readonly Regex StateLineRegex =
-            new(@"(?m)^\s*STATE\s*:\s*(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private const uint SC_MANAGER_CONNECT = 0x0001;
+        private const uint SERVICE_QUERY_STATUS = 0x0004;
+        private const uint SERVICE_STOP = 0x0020;
+        private const uint DELETE = 0x00010000;
+        private const uint SERVICE_CONTROL_STOP = 0x00000001;
+        private const uint SERVICE_RUNNING = 0x00000004;
+        private const int ERROR_SERVICE_DOES_NOT_EXIST = 1060;
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SERVICE_STATUS
+        {
+            public uint dwServiceType;
+            public uint dwCurrentState;
+            public uint dwControlsAccepted;
+            public uint dwWin32ExitCode;
+            public uint dwServiceSpecificExitCode;
+            public uint dwCheckPoint;
+            public uint dwWaitHint;
+        }
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr OpenSCManagerW(string? lpMachineName, string? lpDatabaseName, uint dwDesiredAccess);
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr OpenServiceW(IntPtr hSCManager, string lpServiceName, uint dwDesiredAccess);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool QueryServiceStatus(IntPtr hService, out SERVICE_STATUS lpServiceStatus);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool ControlService(IntPtr hService, uint dwControl, out SERVICE_STATUS lpServiceStatus);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool DeleteService(IntPtr hService);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool CloseServiceHandle(IntPtr hSCObject);
+
+        // Locale-independent fallback regex matching any localized STATE/ESTADO/DURUM/СОСТОЯНИЕ label
+        private static readonly Regex LocalizedStateCodeRegex =
+            new(@"(?m)^\s*[^\r\n:]+:\s*(\d+)\s+[A-Z_]+", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Queries Windows Service Control Manager natively via advapi32.dll (100% locale-independent:
+        /// works identically on Portuguese, Turkish, Russian, Arabic, Chinese, English, and all Windows languages).
+        /// </summary>
         public static ComponentState QueryServiceState(string serviceName)
         {
+            IntPtr scm = IntPtr.Zero;
+            IntPtr svc = IntPtr.Zero;
+            try
+            {
+                scm = OpenSCManagerW(null, null, SC_MANAGER_CONNECT);
+                if (scm != IntPtr.Zero)
+                {
+                    svc = OpenServiceW(scm, serviceName, SERVICE_QUERY_STATUS);
+                    if (svc == IntPtr.Zero)
+                    {
+                        int err = Marshal.GetLastWin32Error();
+                        if (err == ERROR_SERVICE_DOES_NOT_EXIST)
+                        {
+                            return ComponentState.NotInstalled;
+                        }
+                    }
+                    else if (QueryServiceStatus(svc, out var status))
+                    {
+                        return status.dwCurrentState == SERVICE_RUNNING
+                            ? ComponentState.Running
+                            : ComponentState.Stopped;
+                    }
+                }
+            }
+            catch
+            {
+                // Fall back to sc.exe below
+            }
+            finally
+            {
+                if (svc != IntPtr.Zero) CloseServiceHandle(svc);
+                if (scm != IntPtr.Zero) CloseServiceHandle(scm);
+            }
+
+            // Locale-safe sc.exe fallback (never returns NotInstalled when ExitCode == 0)
             var res = CommandRunner.Run("sc.exe", $"query \"{serviceName}\"", 8000);
-            if (res.ExitCode == 1060 || res.CombinedOutput.Contains("1060"))
+            if (res.ExitCode == ERROR_SERVICE_DOES_NOT_EXIST || res.CombinedOutput.Contains("1060"))
             {
                 return ComponentState.NotInstalled;
             }
-
             if (res.ExitCode != 0 && string.IsNullOrWhiteSpace(res.StdOut))
             {
                 return ComponentState.NotInstalled;
             }
 
-            var match = StateLineRegex.Match(res.StdOut);
-            if (match.Success && int.TryParse(match.Groups[1].Value, out int stateCode))
-            {
-                // Win32 SERVICE_STATUS dwCurrentState:
-                // 4 = SERVICE_RUNNING, 1 = STOPPED, 2 = START_PENDING, 3 = STOP_PENDING, etc.
-                return stateCode == 4 ? ComponentState.Running : ComponentState.Stopped;
-            }
-
-            // Fallback text check for unusual localized outputs without "STATE" label
             if (res.StdOut.Contains("RUNNING", StringComparison.OrdinalIgnoreCase))
             {
                 return ComponentState.Running;
             }
 
-            return ComponentState.NotInstalled;
+            foreach (Match m in LocalizedStateCodeRegex.Matches(res.StdOut))
+            {
+                if (m.Groups[0].Value.Contains("STOPPED", StringComparison.OrdinalIgnoreCase) ||
+                    m.Groups[0].Value.Contains("PENDING", StringComparison.OrdinalIgnoreCase) ||
+                    m.Groups[0].Value.Contains("PAUSED", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ComponentState.Stopped;
+                }
+            }
+
+            return ComponentState.Stopped;
         }
 
-        public static void StopService(string serviceName, int waitMs = 6000)
+        public static void StopService(string serviceName, int waitMs = 8000)
         {
             var state = QueryServiceState(serviceName);
             if (state == ComponentState.NotInstalled || state == ComponentState.Stopped) return;
 
-            CommandRunner.Run("sc.exe", $"stop \"{serviceName}\"", 15000);
+            bool sentStop = false;
+            IntPtr scm = IntPtr.Zero;
+            IntPtr svc = IntPtr.Zero;
+            try
+            {
+                scm = OpenSCManagerW(null, null, SC_MANAGER_CONNECT);
+                if (scm != IntPtr.Zero)
+                {
+                    svc = OpenServiceW(scm, serviceName, SERVICE_STOP | SERVICE_QUERY_STATUS);
+                    if (svc != IntPtr.Zero)
+                    {
+                        sentStop = ControlService(svc, SERVICE_CONTROL_STOP, out _);
+                    }
+                }
+            }
+            catch
+            {
+                // Fall back to sc.exe stop
+            }
+            finally
+            {
+                if (svc != IntPtr.Zero) CloseServiceHandle(svc);
+                if (scm != IntPtr.Zero) CloseServiceHandle(scm);
+            }
+
+            if (!sentStop)
+            {
+                CommandRunner.Run("sc.exe", $"stop \"{serviceName}\"", 15000);
+            }
+
             var sw = Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < waitMs)
             {
                 if (QueryServiceState(serviceName) != ComponentState.Running) break;
-                Thread.Sleep(250);
+                Thread.Sleep(200);
             }
         }
 
-        public static void StopAndDeleteService(string serviceName, int waitDeleteMs = 6000)
+        public static void StopAndDeleteService(string serviceName, int waitDeleteMs = 8000)
         {
             var state = QueryServiceState(serviceName);
             if (state == ComponentState.NotInstalled) return;
 
             StopService(serviceName);
-            CommandRunner.Run("sc.exe", $"delete \"{serviceName}\"", 15000);
 
-            // Wait for SCM to finalize deletion so an immediate sc create never hits ERROR 1072
+            bool deletedNative = false;
+            IntPtr scm = IntPtr.Zero;
+            IntPtr svc = IntPtr.Zero;
+            try
+            {
+                scm = OpenSCManagerW(null, null, SC_MANAGER_CONNECT);
+                if (scm != IntPtr.Zero)
+                {
+                    svc = OpenServiceW(scm, serviceName, DELETE);
+                    if (svc != IntPtr.Zero)
+                    {
+                        deletedNative = DeleteService(svc);
+                    }
+                }
+            }
+            catch
+            {
+                // Fall back to sc.exe delete
+            }
+            finally
+            {
+                if (svc != IntPtr.Zero) CloseServiceHandle(svc);
+                if (scm != IntPtr.Zero) CloseServiceHandle(scm);
+            }
+
+            if (!deletedNative)
+            {
+                CommandRunner.Run("sc.exe", $"delete \"{serviceName}\"", 15000);
+            }
+
+            // Wait for SCM to finalize deletion so an immediate sc create never hits ERROR 1072 / 1073
             var sw = Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < waitDeleteMs)
             {

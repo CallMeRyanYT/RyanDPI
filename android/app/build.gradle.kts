@@ -36,8 +36,8 @@ android {
         applicationId = "com.ryandpi.android"
         minSdk = 29
         targetSdk = 35
-        versionCode = 310
-        versionName = "3.1.0"
+        versionCode = 311
+        versionName = "3.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

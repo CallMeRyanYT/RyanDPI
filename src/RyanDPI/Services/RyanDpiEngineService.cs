@@ -466,7 +466,9 @@ namespace RyanDPI.Services
 
                 await Task.Run(() =>
                 {
-                    var binPath = settings.BuildScBinPathValue(EngineCiadpiExe);
+                    var binPath = settings.UsesBuiltInUsqueService
+                        ? RyanDpiSettings.BuildUsqueScBinPathValue(EngineServiceHostExe, EngineUsqueExe, EngineUsqueConfig)
+                        : settings.BuildScBinPathValue(EngineCiadpiExe);
                     CommandRunner.Run("sc.exe", $"config {EngineServiceName} binPath= \"{binPath}\"", 15000);
                     // Use delayed-auto on ProxiFyreService so Wi-Fi/DHCP settles on boot before binding
                     CommandRunner.Run("sc.exe", $"config {RouterServiceName} start= delayed-auto", 10000);
@@ -548,16 +550,7 @@ namespace RyanDPI.Services
                 }
 
                 // Kill any lingering engine processes before deleting folder
-                await Task.Run(() =>
-                {
-                    foreach (var procName in new[] { "ProxiFyre", "ciadpi", "dnscrypt-proxy", "usque" })
-                    {
-                        foreach (var p in Process.GetProcessesByName(procName))
-                        {
-                            try { p.Kill(); p.WaitForExit(3000); } catch { }
-                        }
-                    }
-                });
+                await Task.Run(() => KillEngineProcesses(includeDnsCrypt: true));
 
                 await Task.Delay(500);
 
@@ -1007,14 +1000,7 @@ namespace RyanDPI.Services
                     // Ensure stopped before overwriting files
                     ServiceControlHelper.StopService(RouterServiceName);
                     ServiceControlHelper.StopService(EngineServiceName);
-
-                    foreach (var procName in new[] { "ProxiFyre", "ciadpi", "usque" })
-                    {
-                        foreach (var p in Process.GetProcessesByName(procName))
-                        {
-                            try { p.Kill(); p.WaitForExit(2000); } catch { }
-                        }
-                    }
+                    KillEngineProcesses(includeDnsCrypt: false);
 
                     Directory.CreateDirectory(EngineByeDpiDir);
                     Directory.CreateDirectory(EngineProxiFyreDir);
@@ -1191,7 +1177,52 @@ namespace RyanDPI.Services
                 try { File.SetAttributes(EngineProxiFyreConfig, FileAttributes.Normal); } catch { }
             }
             File.WriteAllText(EngineProxiFyreConfig, json);
-            LogService.Info($"Wrote system-wide ProxiFyre config (UDP={settings.TunnelUdp}, BypassLan={settings.BypassLan}, UserExcludes={settings.ExcludedApps.Count}).");
+            if (settings.Region == RegionPreset.Brazil)
+            {
+                var ep = settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5
+                    ? settings.CustomSocksEndpoint
+                    : $"127.0.0.1:{RyanDpiSettings.UsqueSocksPort} (WARP MASQUE)";
+                LogService.Info($"Wrote Brazil Discord-Only Split-Tunnel ProxiFyre config (Endpoint={ep}, UDP={settings.BrazilIncludeUdp}, Browsers={settings.BrazilIncludeBrowsers}, Games=100% Direct).");
+            }
+            else
+            {
+                LogService.Info($"Wrote system-wide ProxiFyre config (Region={settings.Region}, UDP={settings.TunnelUdp}, BypassLan={settings.BypassLan}, UserExcludes={settings.ExcludedApps.Count}).");
+            }
+        }
+
+        private static void KillEngineProcesses(bool includeDnsCrypt)
+        {
+            var names = includeDnsCrypt
+                ? new[] { "ProxiFyre", "ciadpi", "dnscrypt-proxy", "usque" }
+                : new[] { "ProxiFyre", "ciadpi", "usque" };
+
+            foreach (var procName in names)
+            {
+                foreach (var p in Process.GetProcessesByName(procName))
+                {
+                    try { p.Kill(); p.WaitForExit(2500); } catch { }
+                    finally { try { p.Dispose(); } catch { } }
+                }
+            }
+
+            // Also terminate any lingering Brazil usque SCM host (engine\usque\RyanDPI.exe), never our own GUI process
+            int selfPid = Environment.ProcessId;
+            foreach (var p in Process.GetProcessesByName("RyanDPI"))
+            {
+                try
+                {
+                    if (p.Id == selfPid) continue;
+                    var path = p.MainModule?.FileName;
+                    if (!string.IsNullOrEmpty(path) &&
+                        path.StartsWith(EngineRootDir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        p.Kill();
+                        p.WaitForExit(2500);
+                    }
+                }
+                catch { }
+                finally { try { p.Dispose(); } catch { } }
+            }
         }
 
         private static void HardenEngineDirectoryAcls()
@@ -1266,6 +1297,7 @@ namespace RyanDPI.Services
 
                 LogService.Info($"Registering {EngineServiceName} service ({settings.Region})...");
                 var createRes = await CreateServiceWithRetryAsync(
+                    EngineServiceName,
                     $"create {EngineServiceName} binPath= \"{binPath}\" start= auto type= own DisplayName= \"{displayName}\"");
 
                 if (createRes.ExitCode != 0)
@@ -1295,6 +1327,7 @@ namespace RyanDPI.Services
 
                 LogService.Info($"Registering {RouterServiceName} (delayed-auto, depends on NDISRD + {EngineServiceName})...");
                 var createRes = await CreateServiceWithRetryAsync(
+                    RouterServiceName,
                     $"create {RouterServiceName} binPath= \"\\\"{EngineProxiFyreExe}\\\"\" start= delayed-auto depend= {NdisDriverServiceName}/{EngineServiceName} DisplayName= \"RyanDPI Router (ProxiFyre)\"");
 
                 if (createRes.ExitCode != 0)
@@ -1318,10 +1351,10 @@ namespace RyanDPI.Services
             });
         }
 
-        private static async Task<CommandResult> CreateServiceWithRetryAsync(string scCreateArgs)
+        private static async Task<CommandResult> CreateServiceWithRetryAsync(string serviceName, string scCreateArgs)
         {
             CommandResult last = default;
-            for (int attempt = 1; attempt <= 5; attempt++)
+            for (int attempt = 1; attempt <= 8; attempt++)
             {
                 last = CommandRunner.Run("sc.exe", scCreateArgs, 15000);
                 if (last.ExitCode == 0) return last;
@@ -1329,7 +1362,26 @@ namespace RyanDPI.Services
                 // 1072 = ERROR_SERVICE_MARKED_FOR_DELETE (SCM still finalizing previous delete)
                 if (last.ExitCode == 1072 || last.CombinedOutput.Contains("1072"))
                 {
-                    LogService.Warn($"Service marked for deletion (attempt {attempt}/5); waiting for SCM...");
+                    LogService.Warn($"Service {serviceName} marked for deletion (attempt {attempt}/8); waiting for SCM...");
+                    if (serviceName.Equals(EngineServiceName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        KillEngineProcesses(includeDnsCrypt: false);
+                    }
+                    await Task.Delay(500);
+                    continue;
+                }
+
+                // 1073 = ERROR_SERVICE_EXISTS (force stop + delete and retry cleanly)
+                if (last.ExitCode == 1073 || last.CombinedOutput.Contains("1073"))
+                {
+                    LogService.Warn($"Service {serviceName} still exists (1073, attempt {attempt}/8); force-removing before retry...");
+                    CommandRunner.Run("sc.exe", $"stop \"{serviceName}\"", 10000);
+                    if (serviceName.Equals(EngineServiceName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        KillEngineProcesses(includeDnsCrypt: false);
+                    }
+                    CommandRunner.Run("sc.exe", $"delete \"{serviceName}\"", 10000);
+                    ServiceControlHelper.StopAndDeleteService(serviceName, 4000);
                     await Task.Delay(500);
                     continue;
                 }

@@ -1,18 +1,18 @@
-# RyanDPI v3.1.0 — Unbound
+# RyanDPI v3.1.1 — Unbound
 
 **English** | [Türkçe](README.tr.md) | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md) | [فارسی](README.fa.md) | [Bahasa Indonesia](README.id.md) | [简体中文](README.zh.md) | [العربية](README.ar.md)
 
 **RyanDPI — Unbound** is a sleek, one-click **Windows & Android** global zero-lag DPI bypass & Discord split-tunnel tool built to unlock **Discord, Discord Screen Sharing & Video, Roblox, Roblox Studio, YouTube, Instagram, Wattpad, and every blocked website/app worldwide** — **without increasing your gaming ping or cutting your internet speed**.
 
-With **v3.1.0 — Unbound**, RyanDPI goes global with a **First-Startup Country/Region Picker**, a **7-Stage Universal Global DPI Engine**, dedicated **Turkey (BTK)**, **Russia (TSPU)**, and **Brazil (Discord Screen Share 0ms-Game-Lag Split-Tunnel)** modes, and **8 built-in languages**.
+With **v3.1.1 — Unbound**, RyanDPI goes global with a **First-Startup Country/Region Picker**, a **7-Stage Universal Global DPI Engine**, dedicated **Turkey (BTK)**, **Russia (TSPU)**, and **Brazil (Discord Screen Share 0ms-Game-Lag Split-Tunnel)** modes, and **8 built-in languages**.
 
 ---
 
-## Download & Quick Start (`v3.1.0 — Unbound`)
+## Download & Quick Start (`v3.1.1 — Unbound`)
 
-[![Download Windows Setup](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Setup-Windows-3.1.0.exe)
-[![Download Portable ZIP](https://img.shields.io/badge/Download-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Portable-Windows-3.1.0.zip)
-[![Download Android APK](https://img.shields.io/badge/Download-Android%20APK%20(v3.1.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Android-3.1.0.apk)
+[![Download Windows Setup](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Setup-Windows-3.1.1.exe)
+[![Download Portable ZIP](https://img.shields.io/badge/Download-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Portable-Windows-3.1.1.zip)
+[![Download Android APK](https://img.shields.io/badge/Download-Android%20APK%20(v3.1.1)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Android-3.1.1.apk)
 
 ---
 
@@ -45,13 +45,13 @@ On first startup (or anytime via the top-bar **Region Pill**), choose the mode t
 ## Quick Start
 
 ### Windows (10 & 11 x64)
-1. Download and run **[RyanDPI-Setup-Windows-3.1.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Setup-Windows-3.1.0.exe)** (or extract [RyanDPI-Portable-Windows-3.1.0.zip](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Portable-Windows-3.1.0.zip) and run `RyanDPI.exe`).
+1. Download and run **[RyanDPI-Setup-Windows-3.1.1.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Setup-Windows-3.1.1.exe)** (or extract [RyanDPI-Portable-Windows-3.1.1.zip](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Portable-Windows-3.1.1.zip) and run `RyanDPI.exe`).
 2. Pick your country mode (**Universal Global**, **Turkey**, **Russia**, or **Brazil**) on first launch — or change it anytime from the top bar.
 3. Click the **Language button (`EN`)** in the top bar to switch to any of the 8 supported languages in 1 click.
 4. Click **"Install & Enable RyanDPI"** and then **"Run Test"** to verify unlocked services and live ping.
 
 ### Android (Android 10–16, No Root Required)
-1. Download **[RyanDPI-Android-3.1.0.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Android-3.1.0.apk)** on your phone and tap to install *(allow "Install unknown apps" if prompted)*.
+1. Download **[RyanDPI-Android-3.1.1.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Android-3.1.1.apk)** on your phone and tap to install *(allow "Install unknown apps" if prompted)*.
 2. Pick your region (**Universal Global**, **Turkey**, **Russia**, or **Brazil**), tap **"Connect & Unlock"**, and approve Android's local VPN prompt.
 3. Tap **"Run Test"** to verify unlocked services, exit country, and ping. Add the **RyanDPI Quick Settings Tile** for 1-tap toggling anywhere.
 

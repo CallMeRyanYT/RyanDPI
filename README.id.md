@@ -1,4 +1,4 @@
-# RyanDPI v3.1.0 — Unbound
+# RyanDPI v3.1.1 — Unbound
 
 [English](README.md) | [Türkçe](README.tr.md) | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md) | [فارسی](README.fa.md) | **Bahasa Indonesia** | [简体中文](README.zh.md) | [العربية](README.ar.md)
 
@@ -6,11 +6,11 @@
 
 ---
 
-## Unduh & Mulai Cepat (`v3.1.0 — Unbound`)
+## Unduh & Mulai Cepat (`v3.1.1 — Unbound`)
 
-[![Unduh Installer Windows](https://img.shields.io/badge/Unduh-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Setup-Windows-3.1.0.exe)
-[![Unduh Portable ZIP](https://img.shields.io/badge/Unduh-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Portable-Windows-3.1.0.zip)
-[![Unduh APK Android](https://img.shields.io/badge/Unduh-Android%20APK%20(v3.1.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Android-3.1.0.apk)
+[![Unduh Installer Windows](https://img.shields.io/badge/Unduh-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Setup-Windows-3.1.1.exe)
+[![Unduh Portable ZIP](https://img.shields.io/badge/Unduh-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Portable-Windows-3.1.1.zip)
+[![Unduh APK Android](https://img.shields.io/badge/Unduh-Android%20APK%20(v3.1.1)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Android-3.1.1.apk)
 
 ---
 
@@ -27,12 +27,12 @@
 ## Cara Menggunakan
 
 ### Windows (10 & 11 x64)
-1. Unduh dan jalankan **[RyanDPI-Setup-Windows-3.1.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Setup-Windows-3.1.0.exe)** (atau ekstrak [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Portable-Windows-3.1.0.zip)).
+1. Unduh dan jalankan **[RyanDPI-Setup-Windows-3.1.1.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Setup-Windows-3.1.1.exe)** (atau ekstrak [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Portable-Windows-3.1.1.zip)).
 2. Pilih mode **Global Universal (Disarankan)** saat pertama kali dibuka dan pilih bahasa **`ID`** di bilah atas.
 3. Klik **"Pasang & Aktifkan RyanDPI"**, lalu klik **"Jalankan Uji"** untuk memverifikasi koneksi.
 
 ### Android (Android 10–16, Tanpa Root)
-1. Unduh dan pasang **[RyanDPI-Android-3.1.0.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.0/RyanDPI-Android-3.1.0.apk)**.
+1. Unduh dan pasang **[RyanDPI-Android-3.1.1.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Android-3.1.1.apk)**.
 2. Pilih **Global Universal**, ketuk **"Hubungkan & Buka"**, dan izinkan VPN lokal Android *(100% berjalan di perangkat, bukan server VPN!)*.
 3. Tambahkan **Quick Settings Tile RyanDPI** agar bisa menyalakan/mematikan bypass dalam 1 ketukan.
 
