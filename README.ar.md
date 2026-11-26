@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# RyanDPI v3.1.3 — Unbound
+# RyanDPI v3.1.4 — Unbound
 
 [English](README.md) | [Türkçe](README.tr.md) | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md) | [فارسی](README.fa.md) | [Bahasa Indonesia](README.id.md) | [简体中文](README.zh.md) | **العربية**
 
@@ -8,11 +8,11 @@
 
 ---
 
-## التحميل والبدء السريع (`v3.1.3 — Unbound`)
+## التحميل والبدء السريع (`v3.1.4 — Unbound`)
 
-[![تحميل مثبت ويندوز](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.3/RyanDPI-Setup-Windows-3.1.3.exe)
-[![تحميل النسخة المحمولة ZIP](https://img.shields.io/badge/Download-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.3/RyanDPI-Portable-Windows-3.1.3.zip)
-[![تحميل تطبيق أندرويد APK](https://img.shields.io/badge/Download-Android%20APK%20(v3.1.3)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.3/RyanDPI-Android-3.1.3.apk)
+[![تحميل مثبت ويندوز](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Setup-Windows-3.1.4.exe)
+[![تحميل النسخة المحمولة ZIP](https://img.shields.io/badge/Download-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Portable-Windows-3.1.4.zip)
+[![تحميل تطبيق أندرويد APK](https://img.shields.io/badge/Download-Android%20APK%20(v3.1.4)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Android-3.1.4.apk)
 
 ---
 
@@ -30,12 +30,12 @@
 ## التشغيل السريع
 
 ### ويندوز (10 و 11 نواة 64-بت)
-1. حمّل وشغّل **[RyanDPI-Setup-Windows-3.1.3.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.3/RyanDPI-Setup-Windows-3.1.3.exe)** (أو استخرج [النسخة المحمولة ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.3/RyanDPI-Portable-Windows-3.1.3.zip)).
+1. حمّل وشغّل **[RyanDPI-Setup-Windows-3.1.4.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Setup-Windows-3.1.4.exe)** (أو استخرج [النسخة المحمولة ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Portable-Windows-3.1.4.zip)).
 2. اختر الوضع **العالمي الشامل** عند التشغيل الأول، واضغط على زر اللغة بالأعلى لاختيار **`AR` العربية**.
 3. اضغط **«تثبيت وتفعيل RyanDPI»** ثم **«بدء الفحص»** للتحقق من الفتح والبينج المباشر.
 
 ### أندرويد (أندرويد 10–16، بدون روت)
-1. حمّل وثبّت **[RyanDPI-Android-3.1.3.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.3/RyanDPI-Android-3.1.3.apk)**.
+1. حمّل وثبّت **[RyanDPI-Android-3.1.4.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Android-3.1.4.apk)**.
 2. اختر منطقتك واضغط **«اتصال وفتح الحجب»** ووافق على إذن VPN المحلي *(يعمل بالكامل على جهازك بدون خادم VPN خارجي!)*.
 
 ---

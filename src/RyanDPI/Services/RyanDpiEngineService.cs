@@ -3,7 +3,10 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Security;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -27,6 +30,10 @@ namespace RyanDPI.Services
         public static readonly string EngineRootDir = Path.Combine(InstallRootDir, "engine");
         public static readonly string EngineByeDpiDir = Path.Combine(EngineRootDir, "byedpi");
         public static readonly string EngineProxiFyreDir = Path.Combine(EngineRootDir, "proxifyre");
+        public static readonly string FallbackProxiFyreRoot =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RyanDPI");
+        public static readonly string FallbackProxiFyreDir = Path.Combine(FallbackProxiFyreRoot, "proxifyre");
+        public static readonly string FallbackProxiFyreExe = Path.Combine(FallbackProxiFyreDir, "ProxiFyre.exe");
         public static readonly string EngineDnsCryptDir = Path.Combine(EngineRootDir, "dnscrypt");
         public static readonly string EngineUsqueDir = Path.Combine(EngineRootDir, "usque");
 
@@ -39,6 +46,11 @@ namespace RyanDPI.Services
         public static readonly string EngineServiceHostExe = Path.Combine(EngineUsqueDir, "RyanDPI.exe");
         public static readonly string EngineNetworkWatchScript = Path.Combine(EngineRootDir, "network-watch.ps1");
         public static readonly string EngineLastNetworkStateFile = Path.Combine(EngineRootDir, "last_net.txt");
+
+        private static string _activeProxiFyreDir = EngineProxiFyreDir;
+        public static string ActiveProxiFyreDir => _activeProxiFyreDir;
+        public static string ActiveProxiFyreExe => Path.Combine(_activeProxiFyreDir, "ProxiFyre.exe");
+        public static string ActiveProxiFyreConfig => Path.Combine(_activeProxiFyreDir, "app-config.json");
 
         private static readonly string[] LegacyServices =
         {
@@ -307,12 +319,12 @@ namespace RyanDPI.Services
                         };
                     }
 
-                    // 2. Ensure ProxiFyre's required VC++ x64 runtime DLLs exist in System32
+                    // 2. Ensure ProxiFyre's required VC++ x64 runtime DLLs actually load from System32
                     var missingVcDlls = GetMissingVcRedistDlls();
                     if (missingVcDlls.Count > 0)
                     {
-                        LogService.Warn($"Missing VC++ x64 runtime DLLs ({string.Join(", ", missingVcDlls)}) — installing VC++ Redistributable...");
-                        await EnsurePrerequisitesAsync();
+                        LogService.Warn($"Broken or missing VC++ x64 runtime DLLs ({string.Join(", ", missingVcDlls)}) — repairing VC++ Redistributable...");
+                        await EnsurePrerequisitesAsync(forceRepairVc: true);
                     }
 
                     // 3. Start RyanDPI engine first (install it cleanly if missing)
@@ -387,10 +399,12 @@ namespace RyanDPI.Services
                     if (!routerRunning)
                     {
                         LogProxiFyreFailureDiagnostics(rtrStart);
-                        LogService.Warn("ProxiFyreService did not reach Running state — running automatic self-repair (prerequisites, clean ProxiFyre re-stage, ACLs & service re-registration)...");
+                        LogService.Warn("ProxiFyreService did not reach Running state — running automatic self-repair (VC++ LoadLibraryEx check, ProxiFyre policy/fallback path, ACLs & service re-registration)...");
 
-                        var (_, repairReboot) = await EnsurePrerequisitesAsync();
+                        bool vcBroken = GetMissingVcRedistDlls().Count > 0;
+                        var (_, repairReboot) = await EnsurePrerequisitesAsync(forceRepairVc: vcBroken);
                         RestageProxiFyreDirectory(settings);
+                        await ConfigureFirewallRulesAsync();
 
                         // Ensure engine is still running after repair prep
                         if (ServiceControlHelper.QueryServiceState(EngineServiceName) != ComponentState.Running)
@@ -721,18 +735,22 @@ namespace RyanDPI.Services
 
                 await Task.Delay(500);
 
-                if (Directory.Exists(EngineRootDir))
+                foreach (var cleanupDir in new[] { EngineRootDir, FallbackProxiFyreRoot })
                 {
-                    try
+                    if (Directory.Exists(cleanupDir))
                     {
-                        Directory.Delete(EngineRootDir, recursive: true);
-                        LogService.Info($"Removed engine directory: {EngineRootDir}");
-                    }
-                    catch (Exception ex)
-                    {
-                        LogService.Warn($"Could not fully remove {EngineRootDir}: {ex.Message}");
+                        try
+                        {
+                            Directory.Delete(cleanupDir, recursive: true);
+                            LogService.Info($"Removed engine directory: {cleanupDir}");
+                        }
+                        catch (Exception ex)
+                        {
+                            LogService.Warn($"Could not fully remove {cleanupDir}: {ex.Message}");
+                        }
                     }
                 }
+                _activeProxiFyreDir = EngineProxiFyreDir;
 
                 LogService.Info("=== RyanDPI completely uninstalled ===");
                 return new OperationResult
@@ -1069,7 +1087,7 @@ namespace RyanDPI.Services
             return true;
         }
 
-        private async Task<(bool Ok, bool NeedsReboot)> EnsurePrerequisitesAsync()
+        private async Task<(bool Ok, bool NeedsReboot)> EnsurePrerequisitesAsync(bool forceRepairVc = false)
         {
             return await Task.Run(() =>
             {
@@ -1116,16 +1134,27 @@ namespace RyanDPI.Services
                     }
                 }
 
-                // 2. VC++ 2015-2022 x64 Redistributable
-                if (!IsVcRedistX64Installed())
+                // 2. VC++ 2015-2022 x64 Redistributable (verified via LoadLibraryEx on all 4 DLLs ProxiFyre preloads)
+                if (forceRepairVc || !IsVcRedistX64Installed())
                 {
                     var vcPath = Path.Combine(prereqDir, "VC_redist.x64.exe");
                     if (File.Exists(vcPath))
                     {
-                        LogService.Info("Installing Visual C++ x64 Redistributable...");
-                        var res = CommandRunner.Run(vcPath, "/install /quiet /norestart", 120000);
-                        LogService.Info($"VC_redist.x64 exit code: {res.ExitCode}");
+                        var args = forceRepairVc ? "/repair /quiet /norestart" : "/install /quiet /norestart";
+                        LogService.Info(forceRepairVc
+                            ? "Repairing Visual C++ x64 Redistributable..."
+                            : "Installing Visual C++ x64 Redistributable...");
+                        var res = CommandRunner.Run(vcPath, args, 120000);
+                        LogService.Info($"VC_redist.x64 ({(forceRepairVc ? "repair" : "install")}) exit code: {res.ExitCode}");
                         if (res.ExitCode == 3010) needsReboot = true;
+
+                        // If /repair failed (e.g. older version or not registered), fall back to /install
+                        if (forceRepairVc && !IsVcRedistX64Installed())
+                        {
+                            var res2 = CommandRunner.Run(vcPath, "/install /quiet /norestart", 120000);
+                            LogService.Info($"VC_redist.x64 (install fallback) exit code: {res2.ExitCode}");
+                            if (res2.ExitCode == 3010) needsReboot = true;
+                        }
                     }
                     else
                     {
@@ -1141,6 +1170,14 @@ namespace RyanDPI.Services
             });
         }
 
+        private const uint LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800;
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibraryExW(string lpLibFileName, IntPtr hFile, uint dwFlags);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeLibrary(IntPtr hModule);
+
         private static readonly string[] RequiredVcRedistDlls =
         {
             "MSVCP140.dll",
@@ -1151,31 +1188,60 @@ namespace RyanDPI.Services
 
         private static List<string> GetMissingVcRedistDlls()
         {
-            var missing = new List<string>();
+            var broken = new List<string>();
             try
             {
                 var sysDir = Environment.SystemDirectory;
                 foreach (var dll in RequiredVcRedistDlls)
                 {
-                    if (!File.Exists(Path.Combine(sysDir, dll)))
+                    var fullPath = Path.Combine(sysDir, dll);
+                    if (!File.Exists(fullPath))
                     {
-                        missing.Add(dll);
+                        broken.Add($"{dll}:missing");
+                        continue;
+                    }
+
+                    // Match ProxiFyre's exact NativeDependencyLoader check: actually load the x64 DLL from System32
+                    var handle = LoadLibraryExW(fullPath, IntPtr.Zero, LOAD_LIBRARY_SEARCH_SYSTEM32);
+                    if (handle == IntPtr.Zero)
+                    {
+                        int err = Marshal.GetLastWin32Error();
+                        broken.Add($"{dll}:LoadErr={err}");
+                    }
+                    else
+                    {
+                        FreeLibrary(handle);
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                broken.Add($"checkErr:{ex.Message}");
+            }
+            return broken;
+        }
+
+        private static int GetDotNetFramework4Release()
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full");
+                var rel = key?.GetValue("Release");
+                return rel is int i ? i : 0;
+            }
             catch
             {
-                // Ignore filesystem errors
+                return 0;
             }
-            return missing;
         }
 
         private static bool IsVcRedistX64Installed()
         {
             try
             {
-                // ProxiFyre 2.6.1 explicitly preloads all 4 VC++ 2019+/2022 runtime DLLs from System32.
-                // Older VC++ 2015/2017 installs set Registry Installed=1 without MSVCP140_ATOMIC_WAIT.dll!
+                // ProxiFyre 2.6.1 explicitly preloads all 4 x64 VC++ 2019+/2022 runtime DLLs from System32.
+                // Older VC++ 2015/2017 installs set Registry Installed=1 without MSVCP140_ATOMIC_WAIT.dll,
+                // and corrupt/32-bit DLLs dropped into System32 fail LoadLibraryEx even though the file exists!
                 if (GetMissingVcRedistDlls().Count > 0)
                 {
                     return false;
@@ -1191,19 +1257,78 @@ namespace RyanDPI.Services
             }
         }
 
+        private static (bool Checked, bool IsProtected, string Reason) CheckProxiFyreInstallLocationPolicy(string proxiFyreExePath)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(proxiFyreExePath);
+                if (string.IsNullOrWhiteSpace(dir)) return (false, false, "Invalid path");
+                var cfgDll = Path.Combine(dir, "ProxiFyre.Configuration.dll");
+                if (!File.Exists(cfgDll) || !File.Exists(proxiFyreExePath))
+                {
+                    return (false, false, "ProxiFyre files missing");
+                }
+
+                // Invoke ProxiFyre's exact ServiceInstallLocationPolicy.IsProtected inside PowerShell 5.1 (.NET Framework 4.x)
+                var dllEsc = cfgDll.Replace("'", "''");
+                var exeEsc = proxiFyreExePath.Replace("'", "''");
+                var ps = $@"
+try {{
+    Add-Type -Path '{dllEsc}' -ErrorAction Stop
+    $reason = $null
+    $ok = [ProxiFyre.Configuration.ServiceInstallLocationPolicy]::IsProtected('{exeEsc}', [ref]$reason)
+    Write-Output ""POLICY_OK=$ok""
+    Write-Output ""POLICY_REASON=$reason""
+}} catch {{
+    Write-Output ""POLICY_ERR=$($_.Exception.Message)""
+}}
+";
+                var res = CommandRunner.RunPowerShell(ps, 8000);
+                bool? ok = null;
+                string reason = string.Empty;
+                foreach (var line in res.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (line.StartsWith("POLICY_OK=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ok = line[10..].Trim().Equals("True", StringComparison.OrdinalIgnoreCase);
+                    }
+                    else if (line.StartsWith("POLICY_REASON=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        reason = line[14..].Trim();
+                    }
+                    else if (line.StartsWith("POLICY_ERR=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        reason = line[11..].Trim();
+                    }
+                }
+
+                if (ok.HasValue)
+                {
+                    return (true, ok.Value, reason);
+                }
+                return (false, false, CollapseWhitespace(res.CombinedOutput));
+            }
+            catch (Exception ex)
+            {
+                return (false, false, ex.Message);
+            }
+        }
+
         private static bool AreProxiFyreFilesIntact()
         {
-            if (!Directory.Exists(EngineProxiFyreDir) || !File.Exists(EngineProxiFyreConfig))
+            var dir = ActiveProxiFyreDir;
+            var cfg = ActiveProxiFyreConfig;
+            if (!Directory.Exists(dir) || !File.Exists(cfg))
                 return false;
 
             foreach (var fileName in ProxiFyreAllowedFiles)
             {
-                if (!File.Exists(Path.Combine(EngineProxiFyreDir, fileName)))
+                if (!File.Exists(Path.Combine(dir, fileName)))
                     return false;
             }
 
             // Ensure no unexpected PE/manifest files exist that would trip ProxiFyre's security policy
-            foreach (var existing in Directory.GetFiles(EngineProxiFyreDir))
+            foreach (var existing in Directory.GetFiles(dir))
             {
                 var name = Path.GetFileName(existing);
                 if (!ProxiFyreAllowedFiles.Contains(name, StringComparer.OrdinalIgnoreCase) &&
@@ -1214,6 +1339,36 @@ namespace RyanDPI.Services
             }
 
             return true;
+        }
+
+        private static bool StageProxiFyreIntoDir(string targetDir, string srcProxiFyreDir, RyanDpiSettings settings)
+        {
+            Directory.CreateDirectory(targetDir);
+
+            // Copy ONLY ProxiFyre's expected binaries so ProxiFyre 2.6.1's
+            // EngineServiceInstallLocationPolicy never sees an unexpected PE file
+            foreach (var existingFile in Directory.GetFiles(targetDir))
+            {
+                var name = Path.GetFileName(existingFile);
+                if (!ProxiFyreAllowedFiles.Contains(name, StringComparer.OrdinalIgnoreCase) &&
+                    !name.Equals("app-config.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(existingFile); } catch { }
+                }
+            }
+
+            foreach (var fileName in ProxiFyreAllowedFiles)
+            {
+                var src = Path.Combine(srcProxiFyreDir, fileName);
+                if (File.Exists(src))
+                {
+                    File.Copy(src, Path.Combine(targetDir, fileName), overwrite: true);
+                }
+            }
+
+            WriteProxiFyreConfigToDir(settings, targetDir);
+            return File.Exists(Path.Combine(targetDir, "ProxiFyre.exe")) &&
+                   File.Exists(Path.Combine(targetDir, "app-config.json"));
         }
 
         private static bool RestageProxiFyreDirectory(RyanDpiSettings settings)
@@ -1234,33 +1389,44 @@ namespace RyanDPI.Services
                     finally { try { p.Dispose(); } catch { } }
                 }
 
-                Directory.CreateDirectory(EngineProxiFyreDir);
-
-                // Copy ONLY ProxiFyre's expected binaries so ProxiFyre 2.6.1's
-                // EngineServiceInstallLocationPolicy never sees an unexpected PE file
-                foreach (var existingFile in Directory.GetFiles(EngineProxiFyreDir))
-                {
-                    var name = Path.GetFileName(existingFile);
-                    if (!ProxiFyreAllowedFiles.Contains(name, StringComparer.OrdinalIgnoreCase) &&
-                        !name.Equals("app-config.json", StringComparison.OrdinalIgnoreCase))
-                    {
-                        try { File.Delete(existingFile); } catch { }
-                    }
-                }
-
-                foreach (var fileName in ProxiFyreAllowedFiles)
-                {
-                    var src = Path.Combine(srcProxiFyreDir, fileName);
-                    if (File.Exists(src))
-                    {
-                        File.Copy(src, Path.Combine(EngineProxiFyreDir, fileName), overwrite: true);
-                    }
-                }
-
-                WriteProxiFyreConfig(settings);
+                // 1. Primary path: C:\Program Files\RyanDPI\engine\proxifyre
+                var primaryOk = StageProxiFyreIntoDir(EngineProxiFyreDir, srcProxiFyreDir, settings);
                 HardenEngineDirectoryAcls();
 
-                return File.Exists(EngineProxiFyreExe) && File.Exists(EngineProxiFyreConfig);
+                if (primaryOk)
+                {
+                    var (polChecked, isProtected, reason) = CheckProxiFyreInstallLocationPolicy(EngineProxiFyreExe);
+                    if (!polChecked || isProtected)
+                    {
+                        _activeProxiFyreDir = EngineProxiFyreDir;
+                        return true;
+                    }
+
+                    // C:\Program Files (or a parent/file) failed ProxiFyre's strict security policy!
+                    // Automatically fall back to C:\ProgramData\RyanDPI\proxifyre (bypasses C:\Program Files completely!)
+                    LogService.Warn($"[ProxiFyre Policy] Primary path {EngineProxiFyreDir} rejected: {reason}");
+                    LogService.Info($"Testing protected fallback path {FallbackProxiFyreDir}...");
+
+                    Directory.CreateDirectory(FallbackProxiFyreRoot);
+                    var fbOk = StageProxiFyreIntoDir(FallbackProxiFyreDir, srcProxiFyreDir, settings);
+                    HardenDirectoryAclStrict(FallbackProxiFyreRoot, allowUsersReadExecute: false, lockChildFiles: false);
+                    HardenDirectoryAclStrict(FallbackProxiFyreDir, allowUsersReadExecute: false, lockChildFiles: true);
+
+                    if (fbOk)
+                    {
+                        var (fbChecked, fbProtected, fbReason) = CheckProxiFyreInstallLocationPolicy(FallbackProxiFyreExe);
+                        if (fbChecked && fbProtected)
+                        {
+                            _activeProxiFyreDir = FallbackProxiFyreDir;
+                            LogService.Info($"Relocated ProxiFyre cleanly to {FallbackProxiFyreDir} (passed ProxiFyre security policy).");
+                            return true;
+                        }
+                        LogService.Warn($"[ProxiFyre Policy] Fallback path {FallbackProxiFyreDir} also rejected: {fbReason}");
+                    }
+                }
+
+                _activeProxiFyreDir = EngineProxiFyreDir;
+                return primaryOk;
             }
             catch (Exception ex)
             {
@@ -1276,9 +1442,20 @@ namespace RyanDPI.Services
                 return false;
             }
 
+            // Preserve active ProgramData fallback across app restarts if ProxiFyreService was relocated there
+            if (_activeProxiFyreDir.Equals(EngineProxiFyreDir, StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(FallbackProxiFyreExe))
+            {
+                var qc = CommandRunner.Run("sc.exe", $"qc {RouterServiceName}", 8000);
+                if (qc.StdOut.Contains(FallbackProxiFyreDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    _activeProxiFyreDir = FallbackProxiFyreDir;
+                }
+            }
+
             var cfgRes = CommandRunner.Run(
                 "sc.exe",
-                $"config {RouterServiceName} binPath= \"\\\"{EngineProxiFyreExe}\\\"\" start= delayed-auto depend= {NdisDriverServiceName}/{EngineServiceName} DisplayName= \"RyanDPI Router (ProxiFyre)\"",
+                $"config {RouterServiceName} binPath= \"\\\"{ActiveProxiFyreExe}\\\"\" start= delayed-auto depend= {NdisDriverServiceName}/{EngineServiceName} DisplayName= \"RyanDPI Router (ProxiFyre)\"",
                 15000);
             if (cfgRes.ExitCode != 0)
             {
@@ -1303,9 +1480,24 @@ namespace RyanDPI.Services
                 var engState = ServiceControlHelper.QueryServiceState(EngineServiceName);
                 var rtrState = ServiceControlHelper.QueryServiceState(RouterServiceName);
                 var missingVc = GetMissingVcRedistDlls();
+                var net4Release = GetDotNetFramework4Release();
                 LogService.Warn(
                     $"ProxiFyre diagnostics: NDISRD={ndisState}, {EngineServiceName}={engState}, {RouterServiceName}={rtrState}, " +
-                    $"MissingVcDlls=[{(missingVc.Count == 0 ? "none" : string.Join(",", missingVc))}]");
+                    $"NetFx4Release={net4Release} (need>=461808), BrokenVcDlls=[{(missingVc.Count == 0 ? "none" : string.Join(",", missingVc))}], ActiveDir={ActiveProxiFyreDir}");
+
+                // Probe 1: Run ProxiFyre.exe --help (runs NativeDependencyLoader.Initialize + verifies .NET 4.7.2 & AV execution)
+                if (File.Exists(ActiveProxiFyreExe))
+                {
+                    var helpRes = CommandRunner.Run(ActiveProxiFyreExe, "--help", 6000, ActiveProxiFyreDir);
+                    var helpOut = CollapseWhitespace(helpRes.StdOut);
+                    if (helpOut.Length > 140) helpOut = helpOut[..140] + "...";
+                    var helpErr = CollapseWhitespace(helpRes.StdErr);
+                    LogService.Warn($"[ProxiFyre --help] exit={helpRes.ExitCode} | err={(string.IsNullOrEmpty(helpErr) ? "<none>" : helpErr)} | out={(string.IsNullOrEmpty(helpOut) ? "<none>" : helpOut)}");
+
+                    // Probe 2: Run ProxiFyre's exact ServiceInstallLocationPolicy.IsProtected check
+                    var (polChecked, polOk, polReason) = CheckProxiFyreInstallLocationPolicy(ActiveProxiFyreExe);
+                    LogService.Warn($"[ProxiFyre Policy] checked={polChecked}, isProtected={polOk}, reason={(string.IsNullOrEmpty(polReason) ? "<none>" : polReason)}");
+                }
 
                 if (startResult.HasValue && (startResult.Value.ExitCode != 0 || !string.IsNullOrWhiteSpace(startResult.Value.CombinedOutput)))
                 {
@@ -1315,28 +1507,11 @@ namespace RyanDPI.Services
                 var qc = CommandRunner.Run("sc.exe", $"qc {RouterServiceName}", 8000);
                 if (!string.IsNullOrWhiteSpace(qc.CombinedOutput))
                 {
-                    var keyLines = qc.CombinedOutput
-                        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(l => l.Trim())
-                        .Where(l =>
-                            l.Contains("BINARY_PATH_NAME", StringComparison.OrdinalIgnoreCase) ||
-                            l.Contains("START_TYPE", StringComparison.OrdinalIgnoreCase) ||
-                            l.Contains("DEPENDENCIES", StringComparison.OrdinalIgnoreCase) ||
-                            l.Contains("SERVICE_START_NAME", StringComparison.OrdinalIgnoreCase) ||
-                            l.Contains("1060"))
-                        .ToList();
-                    if (keyLines.Count > 0)
-                    {
-                        LogService.Warn($"[sc qc {RouterServiceName}] {string.Join(" | ", keyLines)}");
-                    }
-                    else
-                    {
-                        LogService.Warn($"[sc qc {RouterServiceName}] {CollapseWhitespace(qc.CombinedOutput)}");
-                    }
+                    LogService.Warn($"[sc qc {RouterServiceName}] {CollapseWhitespace(qc.CombinedOutput)}");
                 }
 
                 // Read latest ProxiFyre NLog output (if ProxiFyre reached managed initialization)
-                var pfLogsDir = Path.Combine(EngineProxiFyreDir, "logs");
+                var pfLogsDir = Path.Combine(ActiveProxiFyreDir, "logs");
                 if (Directory.Exists(pfLogsDir))
                 {
                     var newestLog = new DirectoryInfo(pfLogsDir)
@@ -1451,35 +1626,12 @@ $evts | Where-Object {
                         }
                     }
 
-                    // Copy ONLY ProxiFyre's expected binaries so ProxiFyre 2.6.1's
-                    // EngineServiceInstallLocationPolicy never sees an unexpected PE file
-                    foreach (var existingFile in Directory.GetFiles(EngineProxiFyreDir))
-                    {
-                        var name = Path.GetFileName(existingFile);
-                        if (!ProxiFyreAllowedFiles.Contains(name, StringComparer.OrdinalIgnoreCase) &&
-                            !name.Equals("app-config.json", StringComparison.OrdinalIgnoreCase))
-                        {
-                            try { File.Delete(existingFile); } catch { }
-                        }
-                    }
+                    // Stage ProxiFyre cleanly and verify ProxiFyre's ServiceInstallLocationPolicy
+                    // (automatically falls back to C:\ProgramData\RyanDPI\proxifyre if C:\Program Files has broken ACLs)
+                    var pfStaged = RestageProxiFyreDirectory(settings);
 
-                    foreach (var fileName in ProxiFyreAllowedFiles)
-                    {
-                        var src = Path.Combine(srcProxiFyreDir, fileName);
-                        if (File.Exists(src))
-                        {
-                            File.Copy(src, Path.Combine(EngineProxiFyreDir, fileName), overwrite: true);
-                        }
-                    }
-
-                    // Write system-wide RyanDPI app-config.json
-                    WriteProxiFyreConfig(settings);
-
-                    // Harden ACLs for ProxiFyre 2.6.1 security policy
-                    HardenEngineDirectoryAcls();
-
-                    LogService.Info($"Staged RyanDPI engine files cleanly to {EngineRootDir}");
-                    return File.Exists(EngineCiadpiExe) && File.Exists(EngineProxiFyreExe);
+                    LogService.Info($"Staged RyanDPI engine files cleanly to {EngineRootDir} (ProxiFyre={ActiveProxiFyreDir})");
+                    return File.Exists(EngineCiadpiExe) && pfStaged && File.Exists(ActiveProxiFyreExe);
                 }
                 catch (Exception ex)
                 {
@@ -1508,6 +1660,7 @@ $evts | Where-Object {
                 "ProxiFyre",
                 "ProxiFyre.exe",
                 EngineProxiFyreExe,
+                FallbackProxiFyreExe,
                 DnsService.DnsCryptServiceName,
                 "dnscrypt-proxy.exe",
                 EngineDnsCryptExe,
@@ -1597,13 +1750,31 @@ $evts | Where-Object {
 
         private static void WriteProxiFyreConfig(RyanDpiSettings settings)
         {
-            var json = BuildProxiFyreConfigJson(settings);
-            Directory.CreateDirectory(EngineProxiFyreDir);
-            if (File.Exists(EngineProxiFyreConfig))
+            WriteProxiFyreConfigToDir(settings, ActiveProxiFyreDir);
+            if (!ActiveProxiFyreDir.Equals(EngineProxiFyreDir, StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(EngineProxiFyreDir))
             {
-                try { File.SetAttributes(EngineProxiFyreConfig, FileAttributes.Normal); } catch { }
+                try { WriteProxiFyreConfigToDir(settings, EngineProxiFyreDir, logInfo: false); } catch { }
             }
-            File.WriteAllText(EngineProxiFyreConfig, json);
+            if (!ActiveProxiFyreDir.Equals(FallbackProxiFyreDir, StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(FallbackProxiFyreDir))
+            {
+                try { WriteProxiFyreConfigToDir(settings, FallbackProxiFyreDir, logInfo: false); } catch { }
+            }
+        }
+
+        private static void WriteProxiFyreConfigToDir(RyanDpiSettings settings, string targetDir, bool logInfo = true)
+        {
+            var json = BuildProxiFyreConfigJson(settings);
+            Directory.CreateDirectory(targetDir);
+            var cfgPath = Path.Combine(targetDir, "app-config.json");
+            if (File.Exists(cfgPath))
+            {
+                try { File.SetAttributes(cfgPath, FileAttributes.Normal); } catch { }
+            }
+            File.WriteAllText(cfgPath, json);
+            if (!logInfo) return;
+
             if (settings.Region == RegionPreset.Brazil)
             {
                 var ep = settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5
@@ -1652,34 +1823,88 @@ $evts | Where-Object {
             }
         }
 
+        private static void HardenDirectoryAclStrict(string dirPath, bool allowUsersReadExecute, bool lockChildFiles)
+        {
+            if (!Directory.Exists(dirPath)) return;
+
+            // 1. Set owner to BUILTIN\Administrators FIRST via icacls before modifying ACLs
+            var ownerRes = CommandRunner.Run("icacls.exe", $"\"{dirPath}\" /setowner \"*S-1-5-32-544\" {(lockChildFiles ? "/T " : "")}/C", 15000);
+            if (ownerRes.ExitCode != 0)
+            {
+                LogService.Warn($"icacls /setowner warning on {dirPath} (exit {ownerRes.ExitCode}): {CollapseWhitespace(ownerRes.CombinedOutput)}");
+            }
+
+            // 2. Apply exact native .NET DirectorySecurity (100% locale-independent, removes ALL non-trusted ACEs including CREATOR OWNER)
+            try
+            {
+                var adminSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+                var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+                var usersSid = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+
+                var di = new DirectoryInfo(dirPath);
+                var ds = new DirectorySecurity();
+                ds.SetOwner(adminSid);
+                ds.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+                ds.AddAccessRule(new FileSystemAccessRule(
+                    systemSid, FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None, AccessControlType.Allow));
+                ds.AddAccessRule(new FileSystemAccessRule(
+                    adminSid, FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None, AccessControlType.Allow));
+                if (allowUsersReadExecute)
+                {
+                    ds.AddAccessRule(new FileSystemAccessRule(
+                        usersSid, FileSystemRights.ReadAndExecute,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None, AccessControlType.Allow));
+                }
+                di.SetAccessControl(ds);
+
+                if (lockChildFiles)
+                {
+                    foreach (var file in di.GetFiles())
+                    {
+                        var fs = new FileSecurity();
+                        fs.SetOwner(adminSid);
+                        fs.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+                        fs.AddAccessRule(new FileSystemAccessRule(systemSid, FileSystemRights.FullControl, AccessControlType.Allow));
+                        fs.AddAccessRule(new FileSystemAccessRule(adminSid, FileSystemRights.FullControl, AccessControlType.Allow));
+                        file.SetAccessControl(fs);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Warn($"Native ACL hardening warning on {dirPath}: {ex.Message}");
+            }
+
+            // 3. Reinforce with icacls
+            var grantSpec = allowUsersReadExecute
+                ? "\"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\" \"*S-1-5-32-545:(OI)(CI)RX\""
+                : "\"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\"";
+            var aclRes = CommandRunner.Run("icacls.exe", $"\"{dirPath}\" /inheritance:r /grant:r {grantSpec}", 15000);
+            if (aclRes.ExitCode != 0)
+            {
+                LogService.Warn($"icacls grant warning on {dirPath} (exit {aclRes.ExitCode}): {CollapseWhitespace(aclRes.CombinedOutput)}");
+            }
+        }
+
         private static void HardenEngineDirectoryAcls()
         {
-            // ProxiFyre 2.6.1 strictly verifies its folder AND parent chain have no non-admin
+            // ProxiFyre 2.6.1 strictly verifies its folder, every payload file, AND its parent chain
+            // have trusted owners (SYSTEM/Administrators/TrustedInstaller) and zero non-admin
             // write/delete/permission-control ACEs (including inherited CREATOR OWNER S-1-3-0).
-            // Reset inheritance on tree first, then lock directories WITHOUT /T on (OI)(CI)F
-            // so child files cleanly inherit SYSTEM + Administrators Full Control.
-            if (Directory.Exists(InstallRootDir))
+            HardenDirectoryAclStrict(InstallRootDir, allowUsersReadExecute: true, lockChildFiles: false);
+            HardenDirectoryAclStrict(EngineRootDir, allowUsersReadExecute: false, lockChildFiles: false);
+            HardenDirectoryAclStrict(EngineProxiFyreDir, allowUsersReadExecute: false, lockChildFiles: true);
+            if (Directory.Exists(FallbackProxiFyreDir))
             {
-                CommandRunner.Run("icacls.exe", $"\"{InstallRootDir}\" /setowner \"*S-1-5-32-544\" /C", 15000);
-                CommandRunner.Run("icacls.exe",
-                    $"\"{InstallRootDir}\" /inheritance:r /grant:r \"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\" \"*S-1-5-32-545:(OI)(CI)RX\"",
-                    15000);
+                HardenDirectoryAclStrict(FallbackProxiFyreRoot, allowUsersReadExecute: false, lockChildFiles: false);
+                HardenDirectoryAclStrict(FallbackProxiFyreDir, allowUsersReadExecute: false, lockChildFiles: true);
             }
-
-            if (Directory.Exists(EngineRootDir))
-            {
-                CommandRunner.Run("icacls.exe", $"\"{EngineRootDir}\" /setowner \"*S-1-5-32-544\" /C", 15000);
-                CommandRunner.Run("icacls.exe",
-                    $"\"{EngineRootDir}\" /inheritance:r /grant:r \"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\"",
-                    15000);
-            }
-
-            CommandRunner.Run("icacls.exe", $"\"{EngineProxiFyreDir}\" /reset /T /C", 15000);
-            CommandRunner.Run("icacls.exe", $"\"{EngineProxiFyreDir}\" /setowner \"*S-1-5-32-544\" /T /C", 15000);
-            var aclRes = CommandRunner.Run("icacls.exe",
-                $"\"{EngineProxiFyreDir}\" /inheritance:r /grant:r \"*S-1-5-18:(OI)(CI)F\" \"*S-1-5-32-544:(OI)(CI)F\"",
-                15000);
-            LogService.Info($"Hardened ProxiFyre folder ACLs (exit code {aclRes.ExitCode}).");
+            LogService.Info($"Hardened ProxiFyre folder ACLs ({ActiveProxiFyreDir}).");
         }
 
         private async Task<bool> InstallAndStartEngineServiceAsync(RyanDpiSettings settings)
@@ -1761,10 +1986,10 @@ $evts | Where-Object {
             {
                 ServiceControlHelper.StopAndDeleteService(RouterServiceName);
 
-                LogService.Info($"Registering {RouterServiceName} (delayed-auto, depends on NDISRD + {EngineServiceName})...");
+                LogService.Info($"Registering {RouterServiceName} (delayed-auto, bin={ActiveProxiFyreExe}, depends on NDISRD + {EngineServiceName})...");
                 var createRes = await CreateServiceWithRetryAsync(
                     RouterServiceName,
-                    $"create {RouterServiceName} binPath= \"\\\"{EngineProxiFyreExe}\\\"\" start= delayed-auto depend= {NdisDriverServiceName}/{EngineServiceName} DisplayName= \"RyanDPI Router (ProxiFyre)\"");
+                    $"create {RouterServiceName} binPath= \"\\\"{ActiveProxiFyreExe}\\\"\" start= delayed-auto depend= {NdisDriverServiceName}/{EngineServiceName} DisplayName= \"RyanDPI Router (ProxiFyre)\"");
 
                 if (createRes.ExitCode != 0)
                 {
@@ -1854,7 +2079,7 @@ $evts | Where-Object {
                 {
                     ("RyanDPI Engine", EngineCiadpiExe),
                     ("RyanDPI Geo Engine", EngineUsqueExe),
-                    ("RyanDPI Router", EngineProxiFyreExe),
+                    ("RyanDPI Router", ActiveProxiFyreExe),
                     ("RyanDPI Encrypted DNS", EngineDnsCryptExe)
                 };
 
