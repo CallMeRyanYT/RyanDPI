@@ -317,7 +317,7 @@ namespace RyanDPI
                 try
                 {
                     var res = await _engine.ApplySettingsAndRestartAsync(_settings);
-                    ShowNotice(res.Message, res.Success);
+                    ShowNotice(res.Message, res.Success, res.RequiresReboot);
                 }
                 finally
                 {
@@ -769,7 +769,7 @@ namespace RyanDPI
                 try
                 {
                     var res = await _engine.StartAsync(_settings);
-                    ShowNotice(res.Message, res.Success);
+                    ShowNotice(res.Message, res.Success, res.RequiresReboot);
                 }
                 finally
                 {
@@ -1182,7 +1182,7 @@ namespace RyanDPI
             try
             {
                 var res = await _engine.ApplySettingsAndRestartAsync(_settings);
-                ShowNotice(res.Message, res.Success);
+                ShowNotice(res.Message, res.Success, res.RequiresReboot);
                 NavHome.IsChecked = true;
             }
             finally
@@ -1322,7 +1322,8 @@ namespace RyanDPI
                         refreshRes.Success
                             ? LocalizationService.Tf("Update_UpdatedRefreshed", versionLabel)
                             : LocalizationService.Tf("Update_UpdatedWarn", versionLabel, refreshRes.Message),
-                        refreshRes.Success);
+                        refreshRes.Success,
+                        refreshRes.RequiresReboot);
                 }
                 finally
                 {

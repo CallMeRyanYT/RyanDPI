@@ -262,23 +262,94 @@ namespace RyanDPI.Services
                         _dnsService.EnsureDnsCryptRunningIfInstalled();
                     }
 
-                    // Ensure NDISRD driver is running
-                    if (ServiceControlHelper.QueryServiceState(NdisDriverServiceName) == ComponentState.Stopped)
+                    // 1. Ensure Windows Packet Filter (NDISRD) driver is installed and running
+                    var ndisState = ServiceControlHelper.QueryServiceState(NdisDriverServiceName);
+                    if (ndisState == ComponentState.NotInstalled)
                     {
-                        CommandRunner.Run("sc.exe", $"start {NdisDriverServiceName}", 15000);
+                        LogService.Warn("NDISRD driver is not installed — running prerequisite installer...");
+                        var (prereqOk, ndisReboot) = await EnsurePrerequisitesAsync();
+                        if (!prereqOk)
+                        {
+                            return new OperationResult
+                            {
+                                Success = false,
+                                Message = LocalizationService.T("Msg_NdisFailed")
+                            };
+                        }
+                        if (ndisReboot && ServiceControlHelper.QueryServiceState(NdisDriverServiceName) != ComponentState.Running)
+                        {
+                            return new OperationResult
+                            {
+                                Success = false,
+                                RequiresReboot = true,
+                                Message = LocalizationService.T("Msg_RebootNeeded")
+                            };
+                        }
+                    }
+                    else if (ndisState != ComponentState.Running)
+                    {
+                        var ndisStart = CommandRunner.Run("sc.exe", $"start {NdisDriverServiceName}", 15000);
+                        LogService.Info($"NDISRD start exit code: {ndisStart.ExitCode}");
+                        if (ndisStart.ExitCode != 0 && !string.IsNullOrWhiteSpace(ndisStart.CombinedOutput))
+                        {
+                            LogService.Warn($"NDISRD start output: {CollapseWhitespace(ndisStart.CombinedOutput)}");
+                        }
                     }
 
-                    // Start RyanDPI engine first
-                    if (ServiceControlHelper.QueryServiceState(EngineServiceName) != ComponentState.Running)
+                    if (!await WaitForServiceRunningAsync(NdisDriverServiceName, 3000))
                     {
-                        CommandRunner.Run("sc.exe", $"start {EngineServiceName}", 15000);
+                        LogService.Error("NDISRD driver is not running — a Windows reboot is required to initialize Windows Packet Filter.");
+                        return new OperationResult
+                        {
+                            Success = false,
+                            RequiresReboot = true,
+                            Message = LocalizationService.T("Msg_RebootNeeded")
+                        };
+                    }
+
+                    // 2. Ensure ProxiFyre's required VC++ x64 runtime DLLs exist in System32
+                    var missingVcDlls = GetMissingVcRedistDlls();
+                    if (missingVcDlls.Count > 0)
+                    {
+                        LogService.Warn($"Missing VC++ x64 runtime DLLs ({string.Join(", ", missingVcDlls)}) — installing VC++ Redistributable...");
+                        await EnsurePrerequisitesAsync();
+                    }
+
+                    // 3. Start RyanDPI engine first (install it cleanly if missing)
+                    CommandResult? engStart = null;
+                    if (ServiceControlHelper.QueryServiceState(EngineServiceName) == ComponentState.NotInstalled)
+                    {
+                        LogService.Warn($"{EngineServiceName} service missing during Start — installing cleanly...");
+                        if (!File.Exists(EngineCiadpiExe) || (settings.UsesBuiltInUsqueService && (!File.Exists(EngineUsqueExe) || !File.Exists(EngineServiceHostExe))))
+                        {
+                            await StageEngineAndConfigAsync(settings);
+                        }
+                        var installedEng = await InstallAndStartEngineServiceAsync(settings);
+                        if (!installedEng)
+                        {
+                            return new OperationResult
+                            {
+                                Success = false,
+                                Message = LocalizationService.T("Msg_StartEngineFail")
+                            };
+                        }
+                    }
+                    else if (ServiceControlHelper.QueryServiceState(EngineServiceName) != ComponentState.Running)
+                    {
+                        engStart = CommandRunner.Run("sc.exe", $"start {EngineServiceName}", 15000);
+                        if (engStart.Value.ExitCode != 0)
+                        {
+                            LogService.Warn($"{EngineServiceName} start exit code {engStart.Value.ExitCode}: {CollapseWhitespace(engStart.Value.CombinedOutput)}");
+                        }
                     }
 
                     var serviceRunning = await WaitForServiceRunningAsync(EngineServiceName, 8000);
                     var portReady = serviceRunning && await WaitForLocalSocksPortAsync(settings.ActiveLocalEnginePort, settings.UsesBuiltInUsqueService ? 10000 : 5000);
                     if (!portReady)
                     {
-                        LogService.Error($"RyanDPI engine failed verification (serviceRunning={serviceRunning}).");
+                        var qcEng = CommandRunner.Run("sc.exe", $"qc {EngineServiceName}", 8000);
+                        LogService.Error($"RyanDPI engine failed verification (serviceRunning={serviceRunning}, port=127.0.0.1:{settings.ActiveLocalEnginePort}, scExit={engStart?.ExitCode}).");
+                        LogService.Warn($"[Engine qc] {CollapseWhitespace(qcEng.CombinedOutput)}");
                         return new OperationResult
                         {
                             Success = false,
@@ -286,20 +357,69 @@ namespace RyanDPI.Services
                         };
                     }
 
-                    // Then start system-wide router
-                    if (ServiceControlHelper.QueryServiceState(RouterServiceName) != ComponentState.Running)
+                    // 4. Heal ProxiFyreService registration (binPath + depend= NDISRD/RyanDpiEngine) and start router
+                    CommandResult? rtrStart = null;
+                    bool routerRunning;
+                    if (ServiceControlHelper.QueryServiceState(RouterServiceName) == ComponentState.NotInstalled)
                     {
-                        CommandRunner.Run("sc.exe", $"start {RouterServiceName}", 15000);
+                        LogService.Warn($"{RouterServiceName} service missing during Start — registering cleanly...");
+                        if (!AreProxiFyreFilesIntact())
+                        {
+                            RestageProxiFyreDirectory(settings);
+                        }
+                        routerRunning = await InstallAndStartRouterServiceAsync();
+                    }
+                    else
+                    {
+                        EnsureProxiFyreServiceConfigured();
+                        if (ServiceControlHelper.QueryServiceState(RouterServiceName) != ComponentState.Running)
+                        {
+                            rtrStart = CommandRunner.Run("sc.exe", $"start {RouterServiceName}", 20000);
+                            if (rtrStart.Value.ExitCode != 0)
+                            {
+                                LogService.Warn($"{RouterServiceName} start exit code {rtrStart.Value.ExitCode}: {CollapseWhitespace(rtrStart.Value.CombinedOutput)}");
+                            }
+                        }
+                        routerRunning = await WaitForServiceRunningAsync(RouterServiceName, 6000);
                     }
 
-                    var routerRunning = await WaitForServiceRunningAsync(RouterServiceName, 5000);
+                    // 5. Automatic one-shot self-repair if ProxiFyreService still failed to reach Running
                     if (!routerRunning)
                     {
-                        return new OperationResult
+                        LogProxiFyreFailureDiagnostics(rtrStart);
+                        LogService.Warn("ProxiFyreService did not reach Running state — running automatic self-repair (prerequisites, clean ProxiFyre re-stage, ACLs & service re-registration)...");
+
+                        var (_, repairReboot) = await EnsurePrerequisitesAsync();
+                        RestageProxiFyreDirectory(settings);
+
+                        // Ensure engine is still running after repair prep
+                        if (ServiceControlHelper.QueryServiceState(EngineServiceName) != ComponentState.Running)
                         {
-                            Success = false,
-                            Message = LocalizationService.T("Msg_StartRouterFail")
-                        };
+                            CommandRunner.Run("sc.exe", $"start {EngineServiceName}", 15000);
+                            await WaitForServiceRunningAsync(EngineServiceName, 6000);
+                        }
+
+                        routerRunning = await InstallAndStartRouterServiceAsync();
+                        if (!routerRunning)
+                        {
+                            bool ndisNotRunning = ServiceControlHelper.QueryServiceState(NdisDriverServiceName) != ComponentState.Running;
+                            if (ndisNotRunning || repairReboot)
+                            {
+                                return new OperationResult
+                                {
+                                    Success = false,
+                                    RequiresReboot = true,
+                                    Message = LocalizationService.T("Msg_RebootNeeded")
+                                };
+                            }
+                            return new OperationResult
+                            {
+                                Success = false,
+                                Message = LocalizationService.T("Msg_StartRouterFail")
+                            };
+                        }
+
+                        LogService.Info("Automatic ProxiFyreService self-repair succeeded!");
                     }
 
                     LogService.Info("RyanDPI services are now running.");
@@ -389,14 +509,34 @@ namespace RyanDPI.Services
                         }
                     }
 
-                    WriteProxiFyreConfig(settings);
-                    HardenEngineDirectoryAcls();
+                    if (!AreProxiFyreFilesIntact())
+                    {
+                        RestageProxiFyreDirectory(settings);
+                    }
+                    else
+                    {
+                        WriteProxiFyreConfig(settings);
+                        HardenEngineDirectoryAcls();
+                    }
+
+                    if (!File.Exists(EngineCiadpiExe))
+                    {
+                        var srcByeDpi = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "byedpi", "ciadpi.exe");
+                        Directory.CreateDirectory(EngineByeDpiDir);
+                        if (File.Exists(srcByeDpi))
+                        {
+                            File.Copy(srcByeDpi, EngineCiadpiExe, overwrite: true);
+                        }
+                    }
 
                     var binPath = settings.UsesBuiltInUsqueService
                         ? RyanDpiSettings.BuildUsqueScBinPathValue(EngineServiceHostExe, EngineUsqueExe, EngineUsqueConfig)
                         : settings.BuildScBinPathValue(EngineCiadpiExe);
                     var cfgRes = CommandRunner.Run("sc.exe", $"config {EngineServiceName} binPath= \"{binPath}\"", 15000);
                     LogService.Info($"Updated RyanDPI service parameters for {settings.Region} (exit code {cfgRes.ExitCode}).");
+
+                    // Always keep ProxiFyreService binPath & dependencies aligned with RyanDpiEngine
+                    EnsureProxiFyreServiceConfigured();
                 });
 
                 // If switching from EncryptedDnsProxy (dnscrypt-proxy running) -> KeepSystemDns (e.g. Turkey -> Brazil),
@@ -497,8 +637,8 @@ namespace RyanDPI.Services
                         ? RyanDpiSettings.BuildUsqueScBinPathValue(EngineServiceHostExe, EngineUsqueExe, EngineUsqueConfig)
                         : settings.BuildScBinPathValue(EngineCiadpiExe);
                     CommandRunner.Run("sc.exe", $"config {EngineServiceName} binPath= \"{binPath}\"", 15000);
-                    // Use delayed-auto on ProxiFyreService so Wi-Fi/DHCP settles on boot before binding
-                    CommandRunner.Run("sc.exe", $"config {RouterServiceName} start= delayed-auto", 10000);
+                    // Heal ProxiFyreService binPath, NDISRD/RyanDpiEngine dependencies & delayed-auto start
+                    EnsureProxiFyreServiceConfigured();
                 });
 
                 if (wasRunning)
@@ -1001,10 +1141,46 @@ namespace RyanDPI.Services
             });
         }
 
+        private static readonly string[] RequiredVcRedistDlls =
+        {
+            "MSVCP140.dll",
+            "MSVCP140_ATOMIC_WAIT.dll",
+            "VCRUNTIME140.dll",
+            "VCRUNTIME140_1.dll"
+        };
+
+        private static List<string> GetMissingVcRedistDlls()
+        {
+            var missing = new List<string>();
+            try
+            {
+                var sysDir = Environment.SystemDirectory;
+                foreach (var dll in RequiredVcRedistDlls)
+                {
+                    if (!File.Exists(Path.Combine(sysDir, dll)))
+                    {
+                        missing.Add(dll);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore filesystem errors
+            }
+            return missing;
+        }
+
         private static bool IsVcRedistX64Installed()
         {
             try
             {
+                // ProxiFyre 2.6.1 explicitly preloads all 4 VC++ 2019+/2022 runtime DLLs from System32.
+                // Older VC++ 2015/2017 installs set Registry Installed=1 without MSVCP140_ATOMIC_WAIT.dll!
+                if (GetMissingVcRedistDlls().Count > 0)
+                {
+                    return false;
+                }
+
                 using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64");
                 var installed = key?.GetValue("Installed");
                 return installed is int i && i == 1;
@@ -1012,6 +1188,216 @@ namespace RyanDPI.Services
             catch
             {
                 return false;
+            }
+        }
+
+        private static bool AreProxiFyreFilesIntact()
+        {
+            if (!Directory.Exists(EngineProxiFyreDir) || !File.Exists(EngineProxiFyreConfig))
+                return false;
+
+            foreach (var fileName in ProxiFyreAllowedFiles)
+            {
+                if (!File.Exists(Path.Combine(EngineProxiFyreDir, fileName)))
+                    return false;
+            }
+
+            // Ensure no unexpected PE/manifest files exist that would trip ProxiFyre's security policy
+            foreach (var existing in Directory.GetFiles(EngineProxiFyreDir))
+            {
+                var name = Path.GetFileName(existing);
+                if (!ProxiFyreAllowedFiles.Contains(name, StringComparer.OrdinalIgnoreCase) &&
+                    !name.Equals("app-config.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool RestageProxiFyreDirectory(RyanDpiSettings settings)
+        {
+            try
+            {
+                var srcProxiFyreDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "proxifyre");
+                if (!Directory.Exists(srcProxiFyreDir))
+                {
+                    LogService.Error($"ProxiFyre folder not found: {srcProxiFyreDir}");
+                    return false;
+                }
+
+                ServiceControlHelper.StopService(RouterServiceName);
+                foreach (var p in Process.GetProcessesByName("ProxiFyre"))
+                {
+                    try { p.Kill(); p.WaitForExit(2500); } catch { }
+                    finally { try { p.Dispose(); } catch { } }
+                }
+
+                Directory.CreateDirectory(EngineProxiFyreDir);
+
+                // Copy ONLY ProxiFyre's expected binaries so ProxiFyre 2.6.1's
+                // EngineServiceInstallLocationPolicy never sees an unexpected PE file
+                foreach (var existingFile in Directory.GetFiles(EngineProxiFyreDir))
+                {
+                    var name = Path.GetFileName(existingFile);
+                    if (!ProxiFyreAllowedFiles.Contains(name, StringComparer.OrdinalIgnoreCase) &&
+                        !name.Equals("app-config.json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try { File.Delete(existingFile); } catch { }
+                    }
+                }
+
+                foreach (var fileName in ProxiFyreAllowedFiles)
+                {
+                    var src = Path.Combine(srcProxiFyreDir, fileName);
+                    if (File.Exists(src))
+                    {
+                        File.Copy(src, Path.Combine(EngineProxiFyreDir, fileName), overwrite: true);
+                    }
+                }
+
+                WriteProxiFyreConfig(settings);
+                HardenEngineDirectoryAcls();
+
+                return File.Exists(EngineProxiFyreExe) && File.Exists(EngineProxiFyreConfig);
+            }
+            catch (Exception ex)
+            {
+                LogService.Error($"Failed to re-stage ProxiFyre files: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static bool EnsureProxiFyreServiceConfigured()
+        {
+            if (ServiceControlHelper.QueryServiceState(RouterServiceName) == ComponentState.NotInstalled)
+            {
+                return false;
+            }
+
+            var cfgRes = CommandRunner.Run(
+                "sc.exe",
+                $"config {RouterServiceName} binPath= \"\\\"{EngineProxiFyreExe}\\\"\" start= delayed-auto depend= {NdisDriverServiceName}/{EngineServiceName} DisplayName= \"RyanDPI Router (ProxiFyre)\"",
+                15000);
+            if (cfgRes.ExitCode != 0)
+            {
+                LogService.Warn($"Could not update {RouterServiceName} service config (exit {cfgRes.ExitCode}): {CollapseWhitespace(cfgRes.CombinedOutput)}");
+            }
+            CommandRunner.Run("sc.exe", $"failure {RouterServiceName} reset= 86400 actions= restart/3000/restart/5000/restart/10000", 10000);
+            return cfgRes.ExitCode == 0;
+        }
+
+        private static string CollapseWhitespace(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+            return string.Join(" ", text.Replace("\r", " ").Replace("\n", " ")
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        private static void LogProxiFyreFailureDiagnostics(CommandResult? startResult)
+        {
+            try
+            {
+                var ndisState = ServiceControlHelper.QueryServiceState(NdisDriverServiceName);
+                var engState = ServiceControlHelper.QueryServiceState(EngineServiceName);
+                var rtrState = ServiceControlHelper.QueryServiceState(RouterServiceName);
+                var missingVc = GetMissingVcRedistDlls();
+                LogService.Warn(
+                    $"ProxiFyre diagnostics: NDISRD={ndisState}, {EngineServiceName}={engState}, {RouterServiceName}={rtrState}, " +
+                    $"MissingVcDlls=[{(missingVc.Count == 0 ? "none" : string.Join(",", missingVc))}]");
+
+                if (startResult.HasValue && (startResult.Value.ExitCode != 0 || !string.IsNullOrWhiteSpace(startResult.Value.CombinedOutput)))
+                {
+                    LogService.Warn($"[sc start {RouterServiceName}] exit={startResult.Value.ExitCode}: {CollapseWhitespace(startResult.Value.CombinedOutput)}");
+                }
+
+                var qc = CommandRunner.Run("sc.exe", $"qc {RouterServiceName}", 8000);
+                if (!string.IsNullOrWhiteSpace(qc.CombinedOutput))
+                {
+                    var keyLines = qc.CombinedOutput
+                        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(l => l.Trim())
+                        .Where(l =>
+                            l.Contains("BINARY_PATH_NAME", StringComparison.OrdinalIgnoreCase) ||
+                            l.Contains("START_TYPE", StringComparison.OrdinalIgnoreCase) ||
+                            l.Contains("DEPENDENCIES", StringComparison.OrdinalIgnoreCase) ||
+                            l.Contains("SERVICE_START_NAME", StringComparison.OrdinalIgnoreCase) ||
+                            l.Contains("1060"))
+                        .ToList();
+                    if (keyLines.Count > 0)
+                    {
+                        LogService.Warn($"[sc qc {RouterServiceName}] {string.Join(" | ", keyLines)}");
+                    }
+                    else
+                    {
+                        LogService.Warn($"[sc qc {RouterServiceName}] {CollapseWhitespace(qc.CombinedOutput)}");
+                    }
+                }
+
+                // Read latest ProxiFyre NLog output (if ProxiFyre reached managed initialization)
+                var pfLogsDir = Path.Combine(EngineProxiFyreDir, "logs");
+                if (Directory.Exists(pfLogsDir))
+                {
+                    var newestLog = new DirectoryInfo(pfLogsDir)
+                        .GetFiles("*.log")
+                        .OrderByDescending(f => f.LastWriteTimeUtc)
+                        .FirstOrDefault();
+                    if (newestLog != null)
+                    {
+                        var tail = File.ReadAllLines(newestLog.FullName)
+                            .Where(l => !string.IsNullOrWhiteSpace(l))
+                            .TakeLast(10)
+                            .ToList();
+                        if (tail.Count > 0)
+                        {
+                            LogService.Warn($"[ProxiFyre log: {newestLog.Name}]");
+                            foreach (var line in tail)
+                            {
+                                LogService.Warn($"  {line.Trim()}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        LogService.Warn($"[ProxiFyre log] No .log files found in {pfLogsDir}.");
+                    }
+                }
+                else
+                {
+                    LogService.Warn($"[ProxiFyre log] Logs folder {pfLogsDir} does not exist (ProxiFyre exited before NLog init).");
+                }
+
+                // Capture recent System / Application Event Log errors mentioning ProxiFyre, NDISRD, socksify, or .NET crash
+                const string evScript = @"
+$since = (Get-Date).AddMinutes(-3)
+$evts = @()
+foreach ($ln in @('System', 'Application')) {
+    try {
+        $evts += Get-WinEvent -FilterHashtable @{ LogName = $ln; Level = 1,2,3; StartTime = $since } -MaxEvents 25 -ErrorAction SilentlyContinue
+    } catch {}
+}
+$evts | Where-Object {
+    $_.Message -match 'ProxiFyre|NDISRD|RyanDpi|socksify|VCRUNTIME|MSVCP140' -or
+    $_.ProviderName -match 'ProxiFyre|\.NET Runtime|Application Error'
+} | Sort-Object TimeCreated -Descending | Select-Object -First 4 | ForEach-Object {
+    $msg = ($_.Message -replace '\r?\n', ' ') -replace '\s+', ' '
+    if ($msg.Length -gt 240) { $msg = $msg.Substring(0, 240) + '...' }
+    ""[$($_.LogName)/$($_.ProviderName) #$($_.Id)] $msg""
+}
+";
+                var evRes = CommandRunner.RunPowerShell(evScript, 6000);
+                if (!string.IsNullOrWhiteSpace(evRes.StdOut))
+                {
+                    foreach (var line in evRes.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        LogService.Warn($"[EventLog] {line.Trim()}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Warn($"Could not collect ProxiFyre diagnostics: {ex.Message}");
             }
         }
 
@@ -1392,10 +1778,11 @@ namespace RyanDPI.Services
                 var startRes = CommandRunner.Run("sc.exe", $"start {RouterServiceName}", 20000);
                 LogService.Info($"{RouterServiceName} start exit code: {startRes.ExitCode}");
 
-                var running = await WaitForServiceRunningAsync(RouterServiceName, 5000);
+                var running = await WaitForServiceRunningAsync(RouterServiceName, 6000);
                 if (!running)
                 {
-                    LogService.Error($"{RouterServiceName} failed to reach RUNNING state: {startRes.CombinedOutput}");
+                    LogService.Error($"{RouterServiceName} failed to reach RUNNING state: {CollapseWhitespace(startRes.CombinedOutput)}");
+                    LogProxiFyreFailureDiagnostics(startRes);
                 }
                 return running;
             });
@@ -1413,7 +1800,8 @@ namespace RyanDPI.Services
                 if (last.ExitCode == 1072 || last.CombinedOutput.Contains("1072"))
                 {
                     LogService.Warn($"Service {serviceName} marked for deletion (attempt {attempt}/8); waiting for SCM...");
-                    if (serviceName.Equals(EngineServiceName, StringComparison.OrdinalIgnoreCase))
+                    if (serviceName.Equals(EngineServiceName, StringComparison.OrdinalIgnoreCase) ||
+                        serviceName.Equals(RouterServiceName, StringComparison.OrdinalIgnoreCase))
                     {
                         KillEngineProcesses(includeDnsCrypt: false);
                     }
@@ -1426,7 +1814,8 @@ namespace RyanDPI.Services
                 {
                     LogService.Warn($"Service {serviceName} still exists (1073, attempt {attempt}/8); force-removing before retry...");
                     CommandRunner.Run("sc.exe", $"stop \"{serviceName}\"", 10000);
-                    if (serviceName.Equals(EngineServiceName, StringComparison.OrdinalIgnoreCase))
+                    if (serviceName.Equals(EngineServiceName, StringComparison.OrdinalIgnoreCase) ||
+                        serviceName.Equals(RouterServiceName, StringComparison.OrdinalIgnoreCase))
                     {
                         KillEngineProcesses(includeDnsCrypt: false);
                     }
