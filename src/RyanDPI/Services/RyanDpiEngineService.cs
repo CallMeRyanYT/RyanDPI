@@ -114,6 +114,17 @@ namespace RyanDPI.Services
 
             try
             {
+                if (settings.Region == RegionPreset.Brazil &&
+                    settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5 &&
+                    !TryParseEndpoint(settings.CustomSocksEndpoint, out _, out _))
+                {
+                    return new OperationResult
+                    {
+                        Success = false,
+                        Message = LocalizationService.T("Msg_CustomSocksInvalid")
+                    };
+                }
+
                 LogService.Info("=== Starting RyanDPI Full System Installation ===");
 
                 // Step 1: Clean up legacy / conflicting services (and prior RyanDPI services for a fresh install)
@@ -367,9 +378,15 @@ namespace RyanDPI.Services
                         }
                     }
 
-                    if (settings.UsesBuiltInUsqueService && !File.Exists(EngineUsqueConfig) && File.Exists(EngineUsqueExe))
+                    if (settings.UsesBuiltInUsqueService && !WindowsServiceHost.IsValidUsqueConfig(EngineUsqueConfig) && File.Exists(EngineUsqueExe))
                     {
-                        CommandRunner.Run(EngineUsqueExe, $"register -a -c \"{EngineUsqueConfig}\"", 25000, EngineUsqueDir);
+                        try { if (File.Exists(EngineUsqueConfig)) File.Delete(EngineUsqueConfig); } catch { }
+                        var reg = CommandRunner.Run(EngineUsqueExe, $"register -a -c \"{EngineUsqueConfig}\"", 25000, EngineUsqueDir);
+                        LogService.Info($"usque register exit={reg.ExitCode}");
+                        if (!WindowsServiceHost.IsValidUsqueConfig(EngineUsqueConfig))
+                        {
+                            LogService.Warn($"usque register output: {reg.CombinedOutput}");
+                        }
                     }
 
                     WriteProxiFyreConfig(settings);
@@ -382,9 +399,19 @@ namespace RyanDPI.Services
                     LogService.Info($"Updated RyanDPI service parameters for {settings.Region} (exit code {cfgRes.ExitCode}).");
                 });
 
-                // Apply DNS mode change
-                var bundledDnsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "dnscrypt-proxy");
-                await _dnsService.ApplyDnsModeAsync(settings.DnsMode, bundledDnsDir);
+                // If switching from EncryptedDnsProxy (dnscrypt-proxy running) -> KeepSystemDns (e.g. Turkey -> Brazil),
+                // cleanly restore DHCP DNS so adapters never stay stuck on 127.0.0.1!
+                if (settings.DnsMode == DnsProtectionMode.KeepSystemDns &&
+                    status.DnsProxyState != ComponentState.NotInstalled)
+                {
+                    LogService.Info("Switching to KeepSystemDns from RyanDPI Encrypted DNS — restoring automatic adapter DNS...");
+                    await _dnsService.ResetDnsToAutomaticAsync(removeDnsCryptService: true);
+                }
+                else
+                {
+                    var bundledDnsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "dnscrypt-proxy");
+                    await _dnsService.ApplyDnsModeAsync(settings.DnsMode, bundledDnsDir);
+                }
 
                 // Refresh firewall rules & network-switch watcher (e.g. if DNS mode changed)
                 await ConfigureFirewallRulesAsync();
@@ -629,7 +656,20 @@ namespace RyanDPI.Services
             // plus Direct Game Baseline Ping (proving 0ms game lag!)
             if (settings.Region == RegionPreset.Brazil)
             {
-                results.Add(await ProbeBrazilExitCountryAsync(probeHost, probePort, settings));
+                if (socksAlive)
+                {
+                    results.Add(await ProbeBrazilExitCountryAsync(probeHost, probePort, settings));
+                }
+                else
+                {
+                    results.Add(new SelfTestCheckResult
+                    {
+                        Name = LocalizationService.T("SelfTest_BrazilExitCheck"),
+                        Passed = false,
+                        LatencyMs = 0,
+                        Summary = LocalizationService.T("SelfTest_LocalEngineStopped")
+                    });
+                }
 
                 using var proxyHandler = CreateOptionalSocksHandler(
                     socksAlive ? probeHost : null,
@@ -1077,6 +1117,7 @@ namespace RyanDPI.Services
                 "usque",
                 "usque.exe",
                 EngineUsqueExe,
+                EngineServiceHostExe,
                 RouterServiceName,
                 "ProxiFyre",
                 "ProxiFyre.exe",
@@ -1274,12 +1315,21 @@ namespace RyanDPI.Services
                         return false;
                     }
 
-                    // Pre-register zero-login Cloudflare WARP MASQUE device key if not enrolled yet
-                    if (!File.Exists(EngineUsqueConfig))
+                    // Pre-register zero-login Cloudflare WARP MASQUE device key if missing or corrupted
+                    if (!WindowsServiceHost.IsValidUsqueConfig(EngineUsqueConfig))
                     {
+                        try { if (File.Exists(EngineUsqueConfig)) File.Delete(EngineUsqueConfig); } catch { }
                         LogService.Info("Registering zero-login Cloudflare WARP MASQUE key for Brazil Split-Tunnel...");
                         var reg = CommandRunner.Run(EngineUsqueExe, $"register -a -c \"{EngineUsqueConfig}\"", 25000, EngineUsqueDir);
                         LogService.Info($"usque register exit={reg.ExitCode}");
+                        if (!WindowsServiceHost.IsValidUsqueConfig(EngineUsqueConfig))
+                        {
+                            LogService.Warn($"usque register attempt 1 failed ({reg.CombinedOutput}); retrying once...");
+                            try { if (File.Exists(EngineUsqueConfig)) File.Delete(EngineUsqueConfig); } catch { }
+                            await Task.Delay(1200);
+                            var reg2 = CommandRunner.Run(EngineUsqueExe, $"register -a -c \"{EngineUsqueConfig}\"", 25000, EngineUsqueDir);
+                            LogService.Info($"usque register retry exit={reg2.ExitCode}");
+                        }
                     }
 
                     binPath = RyanDpiSettings.BuildUsqueScBinPathValue(EngineServiceHostExe, EngineUsqueExe, EngineUsqueConfig);
@@ -1613,10 +1663,10 @@ $engineSvc = Get-Service -Name '{EngineServiceName}' -ErrorAction SilentlyContin
 if (-not $engineSvc -or $engineSvc.Status -ne 'Running') {{ exit 0 }}
 
 if ($networkChanged) {{
-    # Cleanly rebind ProxiFyre WinpkFilter to the new Wi-Fi/Ethernet adapter and clear stale ISP cache in ciadpi
+    # Cleanly rebind ProxiFyre WinpkFilter to the new Wi-Fi/Ethernet adapter and clear stale ISP cache in ciadpi/usque
     Stop-Service -Name '{RouterServiceName}' -Force -ErrorAction SilentlyContinue
     Restart-Service -Name '{EngineServiceName}' -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 1200
     Start-Service -Name '{RouterServiceName}' -ErrorAction SilentlyContinue
 }} elseif ($routerStopped) {{
     Start-Service -Name '{RouterServiceName}' -ErrorAction SilentlyContinue

@@ -47,11 +47,12 @@ class RyanDpiSocksGateway(
     private var serverSocket: ServerSocket? = null
     private var acceptThread: Thread? = null
 
-    // On-demand shrinking thread pools: 0 idle threads when phone is resting (minimal RAM & battery!)
+    // On-demand shrinking thread pools: 0 idle threads when resting, high ceiling (512) without CallerRunsPolicy
+    // so acceptThread NEVER stalls accepting new connections even under heavy multi-tab + Discord load!
     private val ioExecutor: ExecutorService = ThreadPoolExecutor(
-        0, 96, 30L, TimeUnit.SECONDS, SynchronousQueue(),
+        0, 512, 30L, TimeUnit.SECONDS, SynchronousQueue(),
         { r -> Thread(r, "ryandpi-io").apply { isDaemon = true } },
-        ThreadPoolExecutor.CallerRunsPolicy()
+        ThreadPoolExecutor.AbortPolicy()
     )
     private val dnsExecutor: ExecutorService = ThreadPoolExecutor(
         0, 4, 30L, TimeUnit.SECONDS, LinkedBlockingQueue(),
@@ -87,15 +88,20 @@ class RyanDpiSocksGateway(
                 }
                 configureSocket(client)
                 activeSockets.add(client)
-                ioExecutor.execute {
-                    try {
-                        handleClient(client)
-                    } catch (_: Exception) {
-                        // Normal close / reset
-                    } finally {
-                        activeSockets.remove(client)
-                        runCatching { client.close() }
+                try {
+                    ioExecutor.execute {
+                        try {
+                            handleClient(client)
+                        } catch (_: Exception) {
+                            // Normal close / reset
+                        } finally {
+                            activeSockets.remove(client)
+                            runCatching { client.close() }
+                        }
                     }
+                } catch (_: Exception) {
+                    activeSockets.remove(client)
+                    runCatching { client.close() }
                 }
             }
         }, "ryandpi-socks-accept").apply {

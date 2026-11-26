@@ -144,14 +144,32 @@ namespace RyanDPI.Services
             }
         }
 
+        public static bool IsValidUsqueConfig(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return false;
+                var info = new FileInfo(path);
+                if (info.Length < 50) return false;
+                var txt = File.ReadAllText(path);
+                return txt.Contains("\"private_key\"", StringComparison.OrdinalIgnoreCase) ||
+                       txt.Contains("\"endpoint", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static void SuperviseUsqueLoop()
         {
             var workDir = Path.GetDirectoryName(_usqueConfigPath) ?? Path.GetDirectoryName(_usqueExePath) ?? AppDomain.CurrentDomain.BaseDirectory;
             Directory.CreateDirectory(workDir);
 
-            // Auto-register free Cloudflare WARP MASQUE identity if config.json does not exist yet
-            if (!File.Exists(_usqueConfigPath) && File.Exists(_usqueExePath))
+            // Auto-register free Cloudflare WARP MASQUE identity if config.json is missing or corrupted
+            if (!IsValidUsqueConfig(_usqueConfigPath) && File.Exists(_usqueExePath))
             {
+                try { if (File.Exists(_usqueConfigPath)) File.Delete(_usqueConfigPath); } catch { }
                 try
                 {
                     var regPsi = new ProcessStartInfo
@@ -160,9 +178,7 @@ namespace RyanDPI.Services
                         Arguments = $"register -a -c \"{_usqueConfigPath}\"",
                         WorkingDirectory = workDir,
                         UseShellExecute = false,
-                        CreateNoWindow = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true
+                        CreateNoWindow = true
                     };
                     using var regProc = Process.Start(regPsi);
                     regProc?.WaitForExit(20000);
@@ -184,8 +200,9 @@ namespace RyanDPI.Services
                         continue;
                     }
 
-                    if (!File.Exists(_usqueConfigPath))
+                    if (!IsValidUsqueConfig(_usqueConfigPath))
                     {
+                        try { if (File.Exists(_usqueConfigPath)) File.Delete(_usqueConfigPath); } catch { }
                         var regPsi = new ProcessStartInfo
                         {
                             FileName = _usqueExePath,

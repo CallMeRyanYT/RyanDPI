@@ -150,6 +150,11 @@ class DohDnsResolver(
         }
     }
 
+    fun onNetworkChanged() {
+        runCatching { directClient.connectionPool.evictAll() }
+        runCatching { socksFallbackClient?.connectionPool?.evictAll() }
+    }
+
     fun close() {
         runCatching { directClient.dispatcher.executorService.shutdown() }
         runCatching { directClient.connectionPool.evictAll() }

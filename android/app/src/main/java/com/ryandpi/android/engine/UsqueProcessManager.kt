@@ -22,6 +22,14 @@ class UsqueProcessManager(private val context: Context) {
     fun resolveBinaryFile(): File = File(context.applicationInfo.nativeLibraryDir, "libusque.so")
     private fun resolveConfigFile(): File = File(context.filesDir, "usque-config.json")
 
+    private fun isValidConfig(file: File): Boolean {
+        return runCatching {
+            if (!file.exists() || file.length() < 50L) return false
+            val txt = file.readText(Charsets.UTF_8)
+            txt.contains("\"private_key\"", ignoreCase = true) || txt.contains("\"endpoint", ignoreCase = true)
+        }.getOrDefault(false)
+    }
+
     fun start(
         listenPort: Int = RyanDpiSettings.USQUE_SOCKS_PORT,
         onUnexpectedExit: (() -> Unit)? = null
@@ -39,16 +47,23 @@ class UsqueProcessManager(private val context: Context) {
         }
 
         val configFile = resolveConfigFile()
-        if (!configFile.exists()) {
+        if (!isValidConfig(configFile)) {
+            runCatching { if (configFile.exists()) configFile.delete() }
             LogRepository.info("Registering zero-login Cloudflare WARP MASQUE identity...")
-            val regOk = runCatching {
-                val regProc = ProcessBuilder(binary.absolutePath, "register", "-a", "-c", configFile.absolutePath)
-                    .directory(context.filesDir)
-                    .redirectErrorStream(true)
-                    .start()
-                regProc.waitFor(20, TimeUnit.SECONDS)
-                configFile.exists()
-            }.getOrDefault(false)
+            var regOk = false
+            for (attempt in 1..2) {
+                regOk = runCatching {
+                    val regProc = ProcessBuilder(binary.absolutePath, "register", "-a", "-c", configFile.absolutePath)
+                        .directory(context.filesDir)
+                        .redirectErrorStream(true)
+                        .start()
+                    regProc.waitFor(20, TimeUnit.SECONDS)
+                    isValidConfig(configFile)
+                }.getOrDefault(false)
+                if (regOk) break
+                runCatching { if (configFile.exists()) configFile.delete() }
+                if (attempt == 1) runCatching { Thread.sleep(1000) }
+            }
 
             if (!regOk) {
                 val err = "Failed to register Cloudflare WARP MASQUE identity. Check internet connection or use Custom SOCKS5."

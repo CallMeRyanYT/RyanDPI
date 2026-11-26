@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# RyanDPI v3.1.1 — Unbound
+# RyanDPI v3.1.2 — Unbound
 
 [English](README.md) | [Türkçe](README.tr.md) | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md) | **فارسی** | [Bahasa Indonesia](README.id.md) | [简体中文](README.zh.md) | [العربية](README.ar.md)
 
@@ -8,11 +8,11 @@
 
 ---
 
-## دانلود و شروع سریع (`v3.1.1 — Unbound`)
+## دانلود و شروع سریع (`v3.1.2 — Unbound`)
 
-[![دانلود نسخه نصب ویندوز](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Setup-Windows-3.1.1.exe)
-[![دانلود نسخه پرتابل ویندوز](https://img.shields.io/badge/Download-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Portable-Windows-3.1.1.zip)
-[![دانلود نسخه اندروید APK](https://img.shields.io/badge/Download-Android%20APK%20(v3.1.1)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Android-3.1.1.apk)
+[![دانلود نسخه نصب ویندوز](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.2/RyanDPI-Setup-Windows-3.1.2.exe)
+[![دانلود نسخه پرتابل ویندوز](https://img.shields.io/badge/Download-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.2/RyanDPI-Portable-Windows-3.1.2.zip)
+[![دانلود نسخه اندروید APK](https://img.shields.io/badge/Download-Android%20APK%20(v3.1.2)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.2/RyanDPI-Android-3.1.2.apk)
 
 ---
 
@@ -29,12 +29,12 @@
 ## نصب سریع
 
 ### ویندوز (۱۰ و ۱۱، ۶۴ بیتی)
-1. فایل **[RyanDPI-Setup-Windows-3.1.1.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Setup-Windows-3.1.1.exe)** را دانلود و اجرا کنید.
+1. فایل **[RyanDPI-Setup-Windows-3.1.2.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.2/RyanDPI-Setup-Windows-3.1.2.exe)** را دانلود و اجرا کنید.
 2. در اولین اجرا حالت **جهانی یونیورسال (Universal Global)** یا **سخت‌گیرانه (Strict ISP)** را انتخاب کنید و زبان را از نوار بالا روی **`FA`** بگذارید.
 3. روی **«نصب و فعال‌سازی RyanDPI»** کلیک کنید و سپس با دکمه **«اجرای تست»** وضعیت دسترسی و پینگ را بررسی کنید.
 
 ### اندروید (اندروید ۱۰ تا ۱۶، بدون نیاز به روت)
-1. فایل **[RyanDPI-Android-3.1.1.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.1/RyanDPI-Android-3.1.1.apk)** را دانلود و نصب کنید.
+1. فایل **[RyanDPI-Android-3.1.2.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.2/RyanDPI-Android-3.1.2.apk)** را دانلود و نصب کنید.
 2. حالت **جهانی یونیورسال** را انتخاب کرده و روی **«اتصال و باز کردن»** بزنید.
 
 ---

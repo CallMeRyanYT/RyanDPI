@@ -38,13 +38,14 @@ import com.ryandpi.android.engine.UsqueProcessManager
 import com.ryandpi.android.engine.VpnStateHolder
 import com.ryandpi.android.engine.VpnStatus
 import hev.htproxy.TProxyService
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
@@ -124,10 +125,7 @@ class RyanDpiVpnService : VpnService() {
     private var statsJob: Job? = null
     private var activeSettings: RyanDpiSettings? = null
 
-    @Volatile
-    private var isScreenInteractive: Boolean = true
-    @Volatile
-    private var screenWakeSignal: CompletableDeferred<Unit> = CompletableDeferred<Unit>().apply { complete(Unit) }
+    private val screenInteractiveFlow = MutableStateFlow(true)
     private var screenReceiverRegistered: Boolean = false
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var lastNetworkHandle: Long = -1L
@@ -136,14 +134,8 @@ class RyanDpiVpnService : VpnService() {
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                Intent.ACTION_SCREEN_ON -> {
-                    isScreenInteractive = true
-                    screenWakeSignal.complete(Unit)
-                }
-                Intent.ACTION_SCREEN_OFF -> {
-                    isScreenInteractive = false
-                    screenWakeSignal = CompletableDeferred()
-                }
+                Intent.ACTION_SCREEN_ON -> screenInteractiveFlow.value = true
+                Intent.ACTION_SCREEN_OFF -> screenInteractiveFlow.value = false
             }
         }
     }
@@ -152,10 +144,7 @@ class RyanDpiVpnService : VpnService() {
         super.onCreate()
         ensureNotificationChannel()
         val pm = getSystemService(PowerManager::class.java)
-        isScreenInteractive = pm?.isInteractive ?: true
-        if (!isScreenInteractive) {
-            screenWakeSignal = CompletableDeferred()
-        }
+        screenInteractiveFlow.value = pm?.isInteractive ?: true
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -222,6 +211,20 @@ class RyanDpiVpnService : VpnService() {
     }
 
     private fun schedulePermanentRevive(delayMs: Long) {
+        // Rate-limit automatic revives (max 3 per 60s) so a persistent OS restriction never drains battery
+        val prefs = getSharedPreferences("ryandpi_revive_guard", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val windowStart = prefs.getLong("window_start", 0L)
+        val count = if (now - windowStart > 60_000L) 0 else prefs.getInt("count", 0)
+        if (count >= 3) {
+            LogRepository.warn("Permanent Always-On revive throttled (3 attempts in 60s); waiting for user or boot.")
+            return
+        }
+        prefs.edit()
+            .putLong("window_start", if (count == 0) now else windowStart)
+            .putInt("count", count + 1)
+            .apply()
+
         runCatching {
             val reviveIntent = Intent(this, BootReceiver::class.java).setAction(BootReceiver.ACTION_REVIVE)
             val pi = PendingIntent.getBroadcast(
@@ -233,6 +236,17 @@ class RyanDpiVpnService : VpnService() {
             val am = getSystemService(AlarmManager::class.java)
             am?.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, SystemClock.elapsedRealtime() + delayMs, pi)
         }
+    }
+
+    private fun failStartupAndStop(err: String) {
+        // Clear userWantsConnected on fatal config/binary/permission error so Permanent Always-On never loops
+        RyanDpiSettings.setUserWantsConnected(this, false)
+        LogRepository.error(err)
+        stopTunnelLocked()
+        VpnStateHolder.setError(err)
+        refreshQuickTile()
+        stopForegroundCompat()
+        stopSelf()
     }
 
     private fun startTunnel() {
@@ -256,11 +270,7 @@ class RyanDpiVpnService : VpnService() {
                 if (settings.brazilTunnel == BrazilTunnelMode.CUSTOM_SOCKS5) {
                     val parsed = RyanDpiSettings.parseSocksEndpoint(settings.customSocksEndpoint)
                     if (parsed == null) {
-                        val err = "Invalid Custom SOCKS5 endpoint. Enter host:port in Settings (e.g. 1.2.3.4:1080)."
-                        LogRepository.error(err)
-                        VpnStateHolder.setError(err)
-                        refreshQuickTile()
-                        stopSelf()
+                        failStartupAndStop("Invalid Custom SOCKS5 endpoint. Enter host:port in Settings (e.g. 1.2.3.4:1080).")
                         return
                     }
                     socksHost = parsed.host
@@ -273,10 +283,7 @@ class RyanDpiVpnService : VpnService() {
                         handleChildProcessCrash("WARP MASQUE")
                     }
                     if (res.isFailure) {
-                        val err = res.exceptionOrNull()?.message ?: "Failed to start Brazil WARP MASQUE engine."
-                        VpnStateHolder.setError(err)
-                        refreshQuickTile()
-                        stopSelf()
+                        failStartupAndStop(res.exceptionOrNull()?.message ?: "Failed to start Brazil WARP MASQUE engine.")
                         return
                     }
                     usqueManager = uMgr
@@ -291,10 +298,7 @@ class RyanDpiVpnService : VpnService() {
                     handleChildProcessCrash("ciadpi")
                 }
                 if (startResult.isFailure) {
-                    val msg = startResult.exceptionOrNull()?.message ?: "Failed to start local DPI engine."
-                    VpnStateHolder.setError(msg)
-                    refreshQuickTile()
-                    stopSelf()
+                    failStartupAndStop(startResult.exceptionOrNull()?.message ?: "Failed to start local DPI engine.")
                     return
                 }
                 ciadpiManager = manager
@@ -314,12 +318,7 @@ class RyanDpiVpnService : VpnService() {
                         dohResolver = resolver
                         socksGateway = gateway
                     } catch (e: Exception) {
-                        val err = "Encrypted DoH gateway failed to start: ${e.message}"
-                        LogRepository.error(err)
-                        stopTunnelLocked()
-                        VpnStateHolder.setError(err)
-                        refreshQuickTile()
-                        stopSelf()
+                        failStartupAndStop("Encrypted DoH gateway failed to start: ${e.message}")
                         return
                     }
                 }
@@ -329,22 +328,12 @@ class RyanDpiVpnService : VpnService() {
             val tun = try {
                 buildTunInterface(settings)
             } catch (e: Exception) {
-                val err = "Failed to create Android VPN tunnel: ${e.message}"
-                LogRepository.error(err)
-                stopTunnelLocked()
-                VpnStateHolder.setError(err)
-                refreshQuickTile()
-                stopSelf()
+                failStartupAndStop("Failed to create Android VPN tunnel: ${e.message}")
                 return
             }
 
             if (tun == null) {
-                val err = "VPN permission not granted. Open RyanDPI and tap Connect to approve."
-                LogRepository.error(err)
-                stopTunnelLocked()
-                VpnStateHolder.setError(err)
-                refreshQuickTile()
-                stopSelf()
+                failStartupAndStop("VPN permission not granted. Open RyanDPI and tap Connect to approve.")
                 return
             }
             tunInterface = tun
@@ -357,12 +346,7 @@ class RyanDpiVpnService : VpnService() {
                 )
                 TProxyService.TProxyStartService(configFile.absolutePath, tun.fd)
             } catch (e: Throwable) {
-                val err = "Failed to start native TUN tunnel: ${e.message}"
-                LogRepository.error(err)
-                stopTunnelLocked()
-                VpnStateHolder.setError(err)
-                refreshQuickTile()
-                stopSelf()
+                failStartupAndStop("Failed to start native TUN tunnel: ${e.message}")
                 return
             }
 
@@ -452,7 +436,8 @@ class RyanDpiVpnService : VpnService() {
                     VpnStateHolder.updateNetworkLabel(label)
                     if (lastNetworkHandle != -1L && handle != lastNetworkHandle) {
                         lastNetworkHandle = handle
-                        LogRepository.info("Network switched ($label) — keeping RyanDPI seamlessly active.")
+                        LogRepository.info("Network switched ($label) — flushing stale DoH sockets & keeping RyanDPI active.")
+                        dohResolver?.onNetworkChanged()
                         val cfg = activeSettings
                         if (cfg?.region == RegionPreset.BRAZIL && cfg.brazilTunnel == BrazilTunnelMode.BUILTIN_WARP_MASQUE) {
                             // Refresh WARP MASQUE UDP/HTTP3 socket binding cleanly on Wi-Fi <-> 5G handoff
@@ -646,9 +631,9 @@ class RyanDpiVpnService : VpnService() {
             val notifManager = getSystemService(NotificationManager::class.java)
 
             while (isActive && VpnStateHolder.state.value.status == VpnStatus.CONNECTED) {
-                if (!isScreenInteractive) {
-                    // Sleep with zero CPU wakeups until the user turns the screen back on!
-                    screenWakeSignal.await()
+                if (!screenInteractiveFlow.value) {
+                    // Race-free StateFlow sleep with zero CPU wakeups until the user turns the screen back on!
+                    screenInteractiveFlow.first { it }
                     prevTimeMs = SystemClock.elapsedRealtime()
                     val snap = runCatching { TProxyService.TProxyGetStats() }.getOrNull()
                     if (snap != null && snap.size >= 4) {
@@ -659,7 +644,7 @@ class RyanDpiVpnService : VpnService() {
                 }
 
                 delay(STATS_INTERVAL_MS)
-                if (!isScreenInteractive || VpnStateHolder.state.value.status != VpnStatus.CONNECTED) continue
+                if (!screenInteractiveFlow.value || VpnStateHolder.state.value.status != VpnStatus.CONNECTED) continue
 
                 val nowMs = SystemClock.elapsedRealtime()
                 val elapsedMs = (nowMs - prevTimeMs).coerceAtLeast(250L)

@@ -1,5 +1,6 @@
 package com.ryandpi.android.network
 
+import com.ryandpi.android.BuildConfig
 import com.ryandpi.android.engine.BrazilTunnelMode
 import com.ryandpi.android.engine.DohDnsResolver
 import com.ryandpi.android.engine.RegionPreset
@@ -16,8 +17,10 @@ import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
+import java.net.Authenticator
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.PasswordAuthentication
 import java.net.Proxy
 import java.net.Socket
 import java.util.concurrent.TimeUnit
@@ -50,6 +53,19 @@ object SelfTestEngine {
             val proxyHost = customEp?.host ?: "127.0.0.1"
             val proxyPort = customEp?.port ?: RyanDpiSettings.USQUE_SOCKS_PORT
 
+            val useCustomAuth = settings.brazilTunnel == BrazilTunnelMode.CUSTOM_SOCKS5 &&
+                settings.customSocksUsername.isNotBlank()
+            if (useCustomAuth) {
+                Authenticator.setDefault(object : Authenticator() {
+                    override fun getPasswordAuthentication(): PasswordAuthentication {
+                        return PasswordAuthentication(
+                            settings.customSocksUsername.trim(),
+                            settings.customSocksPassword.toCharArray()
+                        )
+                    }
+                })
+            }
+
             val brClient = OkHttpClient.Builder()
                 .apply {
                     if (isConnected) {
@@ -65,13 +81,17 @@ object SelfTestEngine {
             try {
                 val checks = listOf(
                     async(Dispatchers.IO) { checkSocksPort(proxyHost, proxyPort, s, isBrazil = true) },
-                    async(Dispatchers.IO) { checkBrazilExitCountry(brClient, s) },
-                    async(Dispatchers.IO) { checkEndpoint(brClient, "discord", "Discord API", "https://discord.com/api/v10/gateway", s) },
+                    async(Dispatchers.IO) {
+                        if (isConnected) checkBrazilExitCountry(brClient, s)
+                        else SelfTestItem("br_exit", s.testBrazilExitTitle, false, s.testEngineInactive, 0L)
+                    },
+                    async(Dispatchers.IO) { checkEndpoint(brClient, "discord", "Discord API", "https://discord.com/api/v10/gateway", s, useGet = true) },
                     async(Dispatchers.IO) { checkEndpoint(brClient, "discord_cdn", "Discord Media CDN", "https://cdn.discordapp.com/", s) },
-                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testDirectGameBaseline, "https://1.1.1.1/cdn-cgi/trace", s) }
+                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testDirectGameBaseline, "https://1.1.1.1/cdn-cgi/trace", s, useGet = true) }
                 )
                 return@coroutineScope checks.awaitAll()
             } finally {
+                if (useCustomAuth) Authenticator.setDefault(null)
                 runCatching { brClient.dispatcher.executorService.shutdown() }
                 runCatching { brClient.connectionPool.evictAll() }
                 runCatching { directBaselineClient.dispatcher.executorService.shutdown() }
@@ -113,23 +133,23 @@ object SelfTestEngine {
                 listOf(
                     async(Dispatchers.IO) { checkSocksPort("127.0.0.1", RyanDpiSettings.GATEWAY_PORT, s, isBrazil = false) },
                     async(Dispatchers.IO) { checkEncryptedDns(dohResolver, s, isRussia = true) },
-                    async(Dispatchers.IO) { checkEndpoint(testClient, "discord", "Discord", "https://discord.com/api/v10/gateway", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "discord", "Discord", "https://discord.com/api/v10/gateway", s, useGet = true) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "youtube", "YouTube", "https://www.youtube.com/", s) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "instagram", "Instagram", "https://www.instagram.com/", s) },
-                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_app", s.testRobloxApp, "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_app", s.testRobloxApp, "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", s, useGet = true) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_web", s.testRobloxWeb, "https://www.roblox.com/", s) },
-                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testBaseline, "https://1.1.1.1/cdn-cgi/trace", s) }
+                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testBaseline, "https://1.1.1.1/cdn-cgi/trace", s, useGet = true) }
                 )
             } else {
                 listOf(
                     async(Dispatchers.IO) { checkSocksPort("127.0.0.1", RyanDpiSettings.GATEWAY_PORT, s, isBrazil = false) },
                     async(Dispatchers.IO) { checkEncryptedDns(dohResolver, s, isRussia = false) },
-                    async(Dispatchers.IO) { checkEndpoint(testClient, "discord", "Discord", "https://discord.com/api/v10/gateway", s) },
-                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_app", s.testRobloxApp, "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", s) },
-                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_studio", s.testRobloxStudio, "https://apis.roblox.com/health", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "discord", "Discord", "https://discord.com/api/v10/gateway", s, useGet = true) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_app", s.testRobloxApp, "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", s, useGet = true) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_studio", s.testRobloxStudio, "https://apis.roblox.com/health", s, useGet = true) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_web", s.testRobloxWeb, "https://www.roblox.com/", s) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "wattpad", "Wattpad", "https://www.wattpad.com/", s) },
-                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testBaseline, "https://1.1.1.1/cdn-cgi/trace", s) }
+                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testBaseline, "https://1.1.1.1/cdn-cgi/trace", s, useGet = true) }
                 )
             }
             checks.awaitAll()
@@ -171,7 +191,7 @@ object SelfTestEngine {
         return try {
             val req = Request.Builder()
                 .url("https://1.1.1.1/cdn-cgi/trace")
-                .header("User-Agent", "RyanDPI-Android/2.5")
+                .header("User-Agent", "RyanDPI-Android/${BuildConfig.VERSION_NAME}")
                 .build()
             var loc = "??"
             var ip = ""
@@ -219,14 +239,14 @@ object SelfTestEngine {
         id: String,
         name: String,
         url: String,
-        s: AppStrings
+        s: AppStrings,
+        useGet: Boolean = false
     ): SelfTestItem {
         return try {
-            val req = Request.Builder()
+            val reqBuilder = Request.Builder()
                 .url(url)
-                .head()
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) RyanDPI/2.5")
-                .build()
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) RyanDPI/${BuildConfig.VERSION_NAME}")
+            val req = if (useGet) reqBuilder.get().build() else reqBuilder.head().build()
 
             var code = 0
             val coldStart = System.nanoTime()

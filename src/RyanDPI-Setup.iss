@@ -2,7 +2,7 @@
 ; Requires Inno Setup 6
 
 #define MyAppName "RyanDPI"
-#define MyAppVersion "3.1.1"
+#define MyAppVersion "3.1.2"
 #define MyAppPublisher "RyanDPI"
 #define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
 #define MyAppExeName "RyanDPI.exe"
@@ -199,6 +199,10 @@ begin
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine UDP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Engine Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Geo Engine TCP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Geo Engine UDP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Geo Engine In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Geo Engine Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router TCP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router UDP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Router In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -208,6 +212,9 @@ begin
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
+    // Ensure no lingering engine processes lock files before deleting {app}\engine
+    Exec('taskkill.exe', '/F /IM ProxiFyre.exe /IM ciadpi.exe /IM usque.exe /IM dnscrypt-proxy.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
     // Restore automatic DHCP DNS and clear DoH settings on physical + active non-virtual adapters
     ResetDnsCmd := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "' +
       '$seen = @{}; $targets = @(); ' +
@@ -215,8 +222,8 @@ begin
       'Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq ''Up'' -and $_.InterfaceDescription -notlike ''*Virtual*'' -and $_.InterfaceDescription -notlike ''*Hyper-V*'' -and $_.InterfaceDescription -notlike ''*WSL*'' -and $_.Name -notlike ''*vEthernet*'' -and $_.InterfaceDescription -notlike ''*TAP*'' -and $_.InterfaceDescription -notlike ''*TUN*'' -and $_.InterfaceDescription -notlike ''*VPN*'' } | ForEach-Object { if (-not $seen.ContainsKey($_.InterfaceIndex)) { $seen[$_.InterfaceIndex]=$true; $targets+=$_ } }; ' +
       'foreach ($a in $targets) { ' +
       'Set-DnsClientServerAddress -InterfaceIndex $a.InterfaceIndex -ResetServerAddresses -ErrorAction SilentlyContinue; ' +
-      'netsh interface ip set dns $a.Name dhcp | Out-Null; ' +
-      'netsh interface ipv6 set dns $a.Name dhcp | Out-Null; ' +
+      'netsh interface ip set dns """$($a.Name)""" dhcp | Out-Null; ' +
+      'netsh interface ipv6 set dns """$($a.Name)""" dhcp | Out-Null; ' +
       '$p = ''HKLM:\System\CurrentControlSet\Services\Dnscache\InterfaceSpecificParameters\'' + $a.InterfaceGuid + ''\DohInterfaceSettings''; ' +
       'if (Test-Path $p) { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue } }; ' +
       'Clear-DnsClientCache -ErrorAction SilentlyContinue; ipconfig /flushdns | Out-Null"';
