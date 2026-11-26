@@ -1,4 +1,4 @@
-# RyanDPI v3.1.4 — Unbound
+# RyanDPI v3.1.5 — Unbound
 
 [English](README.md) | [Türkçe](README.tr.md) | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md) | [فارسی](README.fa.md) | [Bahasa Indonesia](README.id.md) | **简体中文** | [العربية](README.ar.md)
 
@@ -6,11 +6,11 @@
 
 ---
 
-## 下载与快速开始 (`v3.1.4 — Unbound`)
+## 下载与快速开始 (`v3.1.5 — Unbound`)
 
-[![下载 Windows 安装包](https://img.shields.io/badge/下载-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Setup-Windows-3.1.4.exe)
-[![下载 Windows 便携版](https://img.shields.io/badge/下载-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Portable-Windows-3.1.4.zip)
-[![下载 Android APK](https://img.shields.io/badge/下载-Android%20APK%20(v3.1.4)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Android-3.1.4.apk)
+[![下载 Windows 安装包](https://img.shields.io/badge/下载-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Setup-Windows-3.1.5.exe)
+[![下载 Windows 便携版](https://img.shields.io/badge/下载-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Portable-Windows-3.1.5.zip)
+[![下载 Android APK](https://img.shields.io/badge/下载-Android%20APK%20(v3.1.5)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Android-3.1.5.apk)
 
 ---
 
@@ -27,12 +27,12 @@
 ## 使用步骤
 
 ### Windows (10 / 11 x64)
-1. 下载并运行 **[RyanDPI-Setup-Windows-3.1.4.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Setup-Windows-3.1.4.exe)**（或解压 [便携版 ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Portable-Windows-3.1.4.zip) 运行 `RyanDPI.exe`）。
+1. 下载并运行 **[RyanDPI-Setup-Windows-3.1.5.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Setup-Windows-3.1.5.exe)**（或解压 [便携版 ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Portable-Windows-3.1.5.zip) 运行 `RyanDPI.exe`）。
 2. 首次启动时选择国家/地区模式（推荐 **全球通用模式**），点击顶部栏语言按钮切换为 **`ZH` 简体中文**。
 3. 点击 **“安装并启用 RyanDPI”**，随后点击 **“运行测试”** 验证解锁与实时延迟。
 
 ### Android (Android 10–16，无需 Root)
-1. 下载并安装 **[RyanDPI-Android-3.1.4.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.4/RyanDPI-Android-3.1.4.apk)**。
+1. 下载并安装 **[RyanDPI-Android-3.1.5.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Android-3.1.5.apk)**。
 2. 选择地区模式并点击 **“连接并解锁”**，允许系统本地 VPN 权限即可生效，还可添加系统下拉快捷磁贴一键开关。
 
 ---

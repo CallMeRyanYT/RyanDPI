@@ -331,6 +331,9 @@ namespace RyanDPI.Services
             ["Msg_Started"] = "RyanDPI is now active.",
             ["Msg_StartEngineFail"] = "RyanDPI engine failed to start. Check Logs for details.",
             ["Msg_StartRouterFail"] = "RyanDPI Router (ProxiFyreService) could not start. Check Logs for details.",
+            ["Confirm_RootAclTitle"] = "Restore Default Windows C:\\ Permissions?",
+            ["Confirm_RootAclBody"] = "ProxiFyre's Windows security check blocked startup because your system drive root (C:\\) currently grants non-admin users direct modify/delete access:\n\n{0}\n\nRestore Microsoft's official default C:\\ root permissions now and start RyanDPI?\n(Only updates the C:\\ root entry itself — zero subfolders or files are changed.)",
+            ["Msg_RootAclRepairFailed"] = "Could not restore C:\\ root permissions automatically. Check Logs for details.",
             ["Msg_Paused"] = "RyanDPI paused.",
             ["Msg_SettingsSavedNotInstalled"] = "Settings saved! Click 'Install & Enable RyanDPI' on Home to activate them.",
             ["Msg_SettingsApplyFailed"] = "Failed to apply settings: {0}",
@@ -594,6 +597,9 @@ namespace RyanDPI.Services
             ["Msg_Started"] = "RyanDPI artık aktif.",
             ["Msg_StartEngineFail"] = "RyanDPI motoru başlatılamadı. Günlük sekmesine bak.",
             ["Msg_StartRouterFail"] = "RyanDPI Yönlendirici (ProxiFyreService) başlatılamadı. Günlük sekmesine bak.",
+            ["Confirm_RootAclTitle"] = "Varsayılan Windows C:\\ İzinleri Onarılsın mı?",
+            ["Confirm_RootAclBody"] = "C:\\ sürücü kökünüz yönetici olmayan kullanıcılara doğrudan değiştirme/silme izni verdiği için ProxiFyre güvenlik denetimi başlatmayı engelledi:\n\n{0}\n\nMicrosoft'un resmi varsayılan C:\\ kök izinlerini şimdi geri yükleyip RyanDPI'yı başlatalım mı?\n(Yalnızca C:\\ kök girişini günceller — alt klasörlere veya dosyalara dokunulmaz.)",
+            ["Msg_RootAclRepairFailed"] = "C:\\ kök izinleri otomatik onarılamadı. Ayrıntılar için Günlük sekmesine bak.",
             ["Msg_Paused"] = "RyanDPI duraklatıldı.",
             ["Msg_SettingsSavedNotInstalled"] = "Ayarlar kaydedildi! Etkinleştirmek için Ana Sayfa'dan 'RyanDPI'yı Kur ve Etkinleştir'e tıkla.",
             ["Msg_SettingsApplyFailed"] = "Ayarlar uygulanamadı: {0}",
@@ -719,7 +725,10 @@ namespace RyanDPI.Services
             ["Brazil_BrowsersDesc"] = "Inclui Chrome, Edge, Firefox, Brave e Opera se você transmite tela pelo navegador.",
             ["Btn_SaveApply"] = "Salvar & Aplicar Configurações",
             ["Btn_Applying"] = "Aplicando...",
-            ["Msg_CustomSocksInvalid"] = "Informe um endereço SOCKS5 válido no formato host:porta (ex: 1.2.3.4:1080)."
+            ["Msg_CustomSocksInvalid"] = "Informe um endereço SOCKS5 válido no formato host:porta (ex: 1.2.3.4:1080).",
+            ["Confirm_RootAclTitle"] = "Restaurar Permissões Padrão do Windows em C:\\?",
+            ["Confirm_RootAclBody"] = "A verificação de segurança do ProxiFyre bloqueou a inicialização porque a raiz do disco C:\\ está dando permissão direta de modificar/excluir para usuários sem administrador:\n\n{0}\n\nDeseja restaurar as permissões padrão oficiais do Windows na raiz de C:\\ agora e iniciar o RyanDPI?\n(Atualiza apenas a raiz C:\\ — nenhuma subpasta ou arquivo será alterado.)",
+            ["Msg_RootAclRepairFailed"] = "Não foi possível restaurar as permissões de C:\\ automaticamente. Veja a aba Logs."
         });
 
         // Russian (RU) — inherits complete parity from En and overrides all primary UI strings

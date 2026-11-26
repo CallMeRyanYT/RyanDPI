@@ -48,5 +48,6 @@ namespace RyanDPI.Models
         public bool Success { get; init; }
         public bool RequiresReboot { get; init; }
         public string Message { get; init; } = string.Empty;
+        public string? RootAclPolicyFailureReason { get; init; }
     }
 }

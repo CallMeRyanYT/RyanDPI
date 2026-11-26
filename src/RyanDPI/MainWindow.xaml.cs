@@ -317,7 +317,7 @@ namespace RyanDPI
                 try
                 {
                     var res = await _engine.ApplySettingsAndRestartAsync(_settings);
-                    ShowNotice(res.Message, res.Success, res.RequiresReboot);
+                    await ShowResultOrOfferRootAclRepairAsync(res);
                 }
                 finally
                 {
@@ -708,6 +708,27 @@ namespace RyanDPI
             PanelProgress.Visibility = (busy && showProgressCard) ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        private async Task ShowResultOrOfferRootAclRepairAsync(OperationResult res)
+        {
+            if (!res.Success && !string.IsNullOrWhiteSpace(res.RootAclPolicyFailureReason))
+            {
+                var confirm = MessageBox.Show(
+                    LocalizationService.Tf("Confirm_RootAclBody", res.RootAclPolicyFailureReason),
+                    LocalizationService.T("Confirm_RootAclTitle"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (confirm == MessageBoxResult.Yes)
+                {
+                    var repaired = await _engine.RepairSystemRootAclAndStartAsync(_settings);
+                    ShowNotice(repaired.Message, repaired.Success, repaired.RequiresReboot);
+                    return;
+                }
+            }
+
+            ShowNotice(res.Message, res.Success, res.RequiresReboot);
+        }
+
         private void ShowNotice(string message, bool isSuccess, bool showRebootButton = false)
         {
             _lastNoticeIsSuccess = isSuccess;
@@ -769,7 +790,7 @@ namespace RyanDPI
                 try
                 {
                     var res = await _engine.StartAsync(_settings);
-                    ShowNotice(res.Message, res.Success, res.RequiresReboot);
+                    await ShowResultOrOfferRootAclRepairAsync(res);
                 }
                 finally
                 {
@@ -805,7 +826,7 @@ namespace RyanDPI
             try
             {
                 var result = await _engine.InstallAndEnableAsync(_settings, progress);
-                ShowNotice(result.Message, result.Success, result.RequiresReboot);
+                await ShowResultOrOfferRootAclRepairAsync(result);
             }
             finally
             {
@@ -1182,7 +1203,7 @@ namespace RyanDPI
             try
             {
                 var res = await _engine.ApplySettingsAndRestartAsync(_settings);
-                ShowNotice(res.Message, res.Success, res.RequiresReboot);
+                await ShowResultOrOfferRootAclRepairAsync(res);
                 NavHome.IsChecked = true;
             }
             finally
@@ -1318,12 +1339,19 @@ namespace RyanDPI
                 {
                     var refreshRes = await _engine.RefreshEngineAfterUpdateAsync(_settings);
                     ProgressInstall.Value = 100;
-                    ShowNotice(
-                        refreshRes.Success
-                            ? LocalizationService.Tf("Update_UpdatedRefreshed", versionLabel)
-                            : LocalizationService.Tf("Update_UpdatedWarn", versionLabel, refreshRes.Message),
-                        refreshRes.Success,
-                        refreshRes.RequiresReboot);
+                    if (!refreshRes.Success && !string.IsNullOrWhiteSpace(refreshRes.RootAclPolicyFailureReason))
+                    {
+                        await ShowResultOrOfferRootAclRepairAsync(refreshRes);
+                    }
+                    else
+                    {
+                        ShowNotice(
+                            refreshRes.Success
+                                ? LocalizationService.Tf("Update_UpdatedRefreshed", versionLabel)
+                                : LocalizationService.Tf("Update_UpdatedWarn", versionLabel, refreshRes.Message),
+                            refreshRes.Success,
+                            refreshRes.RequiresReboot);
+                    }
                 }
                 finally
                 {

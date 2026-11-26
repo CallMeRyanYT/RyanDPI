@@ -233,10 +233,12 @@ namespace RyanDPI.Services
                         };
                     }
 
+                    var rootReason = DetectRootAclPolicyFailure(ActiveProxiFyreExe);
                     return new OperationResult
                     {
                         Success = false,
-                        Message = LocalizationService.T("Msg_RouterStartFailed")
+                        Message = LocalizationService.T("Msg_RouterStartFailed"),
+                        RootAclPolicyFailureReason = rootReason
                     };
                 }
 
@@ -426,10 +428,12 @@ namespace RyanDPI.Services
                                     Message = LocalizationService.T("Msg_RebootNeeded")
                                 };
                             }
+                            var rootReason = DetectRootAclPolicyFailure(ActiveProxiFyreExe);
                             return new OperationResult
                             {
                                 Success = false,
-                                Message = LocalizationService.T("Msg_StartRouterFail")
+                                Message = LocalizationService.T("Msg_StartRouterFail"),
+                                RootAclPolicyFailureReason = rootReason
                             };
                         }
 
@@ -1465,6 +1469,178 @@ try {{
             return cfgRes.ExitCode == 0;
         }
 
+        private const string TrustedInstallerSid = "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
+
+        public static bool IsSystemDriveRootPolicyFailure(string? reason)
+        {
+            if (string.IsNullOrWhiteSpace(reason)) return false;
+            var rootDrive = (Path.GetPathRoot(EngineProxiFyreExe) ?? @"C:\").TrimEnd('\\') + @"\";
+            return reason.Contains($"'{rootDrive}'", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string? DetectRootAclPolicyFailure(string proxiFyreExePath)
+        {
+            var (polChecked, polOk, polReason) = CheckProxiFyreInstallLocationPolicy(proxiFyreExePath);
+            if (polChecked && !polOk && IsSystemDriveRootPolicyFailure(polReason))
+            {
+                return polReason;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// User-confirmed repair that restores Microsoft's official factory-default permissions
+        /// on the system drive root ONLY (no /T recursion — zero subfolders or files touched)
+        /// when an overly-permissive non-admin ACE on C:\ blocks ProxiFyre's security policy,
+        /// then starts RyanDPI services immediately.
+        /// </summary>
+        public async Task<OperationResult> RepairSystemRootAclAndStartAsync(RyanDpiSettings settings)
+        {
+            var rootDrive = (Path.GetPathRoot(EngineProxiFyreExe) ?? @"C:\").TrimEnd('\\') + @"\";
+            var repaired = await Task.Run(() =>
+            {
+                try
+                {
+                    LogService.Info($"Restoring official Windows default permissions on {rootDrive} root ONLY (user confirmed, non-recursive)...");
+                    var before = CommandRunner.Run("icacls.exe", rootDrive, 8000);
+                    LogService.Info($"[RootAcl BEFORE {rootDrive}] {CollapseWhitespace(before.CombinedOutput)}");
+
+                    // Inspect current non-trusted direct dangerous SIDs + owner on rootDrive
+                    var dangerousNonTrustedSids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    bool ownerUntrusted = false;
+                    string originalOwnerSid = TrustedInstallerSid;
+                    try
+                    {
+                        var ds = new DirectoryInfo(rootDrive).GetAccessControl();
+                        var owner = ds.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+                        if (owner != null)
+                        {
+                            originalOwnerSid = owner.Value;
+                            ownerUntrusted = !IsTrustedRootSid(owner.Value);
+                        }
+
+                        const FileSystemRights dangerousMask =
+                            FileSystemRights.DeleteSubdirectoriesAndFiles |
+                            FileSystemRights.Delete |
+                            FileSystemRights.ChangePermissions |
+                            FileSystemRights.TakeOwnership |
+                            FileSystemRights.WriteData;
+
+                        foreach (FileSystemAccessRule rule in ds.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+                        {
+                            if (rule.AccessControlType != AccessControlType.Allow) continue;
+                            if ((rule.PropagationFlags & PropagationFlags.InheritOnly) != 0) continue;
+                            if (rule.IdentityReference is not SecurityIdentifier sid) continue;
+                            if (IsTrustedRootSid(sid.Value)) continue;
+
+                            int raw = (int)rule.FileSystemRights;
+                            bool hasGenericDangerous = (raw & 0x10000000) != 0 || (raw & 0x40000000) != 0; // GenericAll | GenericWrite
+                            if (hasGenericDangerous || (rule.FileSystemRights & dangerousMask) != 0)
+                            {
+                                dangerousNonTrustedSids.Add(sid.Value);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogService.Warn($"Could not pre-inspect {rootDrive} ACLs: {ex.Message}");
+                        dangerousNonTrustedSids.Add("S-1-5-11");
+                    }
+
+                    if (dangerousNonTrustedSids.Count == 0)
+                    {
+                        dangerousNonTrustedSids.Add("S-1-5-11");
+                    }
+
+                    // Helper to run icacls on rootDrive (unquoted 3-char "C:\" avoids trailing backslash escaping!)
+                    bool tookOwnership = false;
+                    CommandResult RunRootIcacls(string extraArgs)
+                    {
+                        var r = CommandRunner.Run("icacls.exe", $"{rootDrive} {extraArgs}", 15000);
+                        if (r.ExitCode != 0 && !tookOwnership)
+                        {
+                            LogService.Warn($"icacls {extraArgs} returned exit {r.ExitCode} ({CollapseWhitespace(r.CombinedOutput)}) — taking temporary Administrators ownership of {rootDrive} root ONLY...");
+                            var ownRes = CommandRunner.Run("takeown.exe", $"/F {rootDrive} /A", 15000);
+                            LogService.Info($"takeown {rootDrive} exit={ownRes.ExitCode}: {CollapseWhitespace(ownRes.CombinedOutput)}");
+                            tookOwnership = true;
+                            CommandRunner.Run("icacls.exe", $"{rootDrive} /grant \"*S-1-5-18:(OI)(CI)F\"", 15000);
+                            CommandRunner.Run("icacls.exe", $"{rootDrive} /grant \"*S-1-5-32-544:(OI)(CI)F\"", 15000);
+                            r = CommandRunner.Run("icacls.exe", $"{rootDrive} {extraArgs}", 15000);
+                        }
+                        return r;
+                    }
+
+                    // Always ensure SYSTEM + Administrators keep full control on rootDrive
+                    RunRootIcacls("/grant \"*S-1-5-18:(OI)(CI)F\"");
+                    RunRootIcacls("/grant \"*S-1-5-32-544:(OI)(CI)F\"");
+
+                    foreach (var sid in dangerousNonTrustedSids)
+                    {
+                        LogService.Info($"Hardening non-admin SID {sid} on {rootDrive} root...");
+                        var rem = RunRootIcacls($"/remove:g \"*{sid}\"");
+                        LogService.Info($"icacls /remove:g *{sid} exit={rem.ExitCode}");
+
+                        if (sid.Equals("S-1-5-11", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Restore Microsoft's exact factory-default Windows 10/11 Authenticated Users ACEs on C:\
+                            var g1 = RunRootIcacls("/grant \"*S-1-5-11:(AD)\"");
+                            var g2 = RunRootIcacls("/grant \"*S-1-5-11:(OI)(CI)(IO)M\"");
+                            LogService.Info($"Restored stock Windows S-1-5-11 rules on {rootDrive} (AD exit={g1.ExitCode}, IO-M exit={g2.ExitCode}).");
+                        }
+                        else if (sid.Equals("S-1-5-32-545", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Restore stock Windows Users Read & Execute on C:\
+                            var gUsers = RunRootIcacls("/grant \"*S-1-5-32-545:(OI)(CI)RX\"");
+                            LogService.Info($"Restored stock Windows Users RX rule on {rootDrive} (exit={gUsers.ExitCode}).");
+                        }
+                    }
+
+                    // Restore trusted owner on C:\ (TrustedInstaller if available, else Administrators)
+                    if (tookOwnership || ownerUntrusted)
+                    {
+                        var targetOwner = IsTrustedRootSid(originalOwnerSid) ? originalOwnerSid : TrustedInstallerSid;
+                        var setOwn = CommandRunner.Run("icacls.exe", $"{rootDrive} /setowner \"*{targetOwner}\"", 15000);
+                        if (setOwn.ExitCode != 0 && !targetOwner.Equals("S-1-5-32-544", StringComparison.OrdinalIgnoreCase))
+                        {
+                            setOwn = CommandRunner.Run("icacls.exe", $"{rootDrive} /setowner \"*S-1-5-32-544\"", 15000);
+                        }
+                        LogService.Info($"Restored trusted owner on {rootDrive} root (exit={setOwn.ExitCode}).");
+                    }
+
+                    var after = CommandRunner.Run("icacls.exe", rootDrive, 8000);
+                    LogService.Info($"[RootAcl AFTER {rootDrive}] {CollapseWhitespace(after.CombinedOutput)}");
+
+                    // Re-verify ProxiFyre's exact ServiceInstallLocationPolicy now
+                    RestageProxiFyreDirectory(settings);
+                    var (polChecked, polOk, polReason) = CheckProxiFyreInstallLocationPolicy(ActiveProxiFyreExe);
+                    LogService.Info($"Post-repair ProxiFyre policy check: checked={polChecked}, isProtected={polOk}, reason={(string.IsNullOrEmpty(polReason) ? "OK" : polReason)}");
+                    return !polChecked || polOk;
+                }
+                catch (Exception ex)
+                {
+                    LogService.Error($"System root ACL repair failed: {ex.Message}");
+                    return false;
+                }
+            });
+
+            if (!repaired)
+            {
+                return new OperationResult
+                {
+                    Success = false,
+                    Message = LocalizationService.T("Msg_RootAclRepairFailed")
+                };
+            }
+
+            await ConfigureFirewallRulesAsync();
+            return await StartAsync(settings);
+        }
+
+        private static bool IsTrustedRootSid(string sid) =>
+            sid.Equals("S-1-5-18", StringComparison.OrdinalIgnoreCase) ||
+            sid.Equals("S-1-5-32-544", StringComparison.OrdinalIgnoreCase) ||
+            sid.Equals(TrustedInstallerSid, StringComparison.OrdinalIgnoreCase);
+
         private static string CollapseWhitespace(string? text)
         {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -1497,6 +1673,12 @@ try {{
                     // Probe 2: Run ProxiFyre's exact ServiceInstallLocationPolicy.IsProtected check
                     var (polChecked, polOk, polReason) = CheckProxiFyreInstallLocationPolicy(ActiveProxiFyreExe);
                     LogService.Warn($"[ProxiFyre Policy] checked={polChecked}, isProtected={polOk}, reason={(string.IsNullOrEmpty(polReason) ? "<none>" : polReason)}");
+                    if (polChecked && !polOk && IsSystemDriveRootPolicyFailure(polReason))
+                    {
+                        var rootDrive = Path.GetPathRoot(ActiveProxiFyreExe) ?? @"C:\";
+                        var rootAcl = CommandRunner.Run("icacls.exe", rootDrive, 8000);
+                        LogService.Warn($"[RootAcl {rootDrive}] {CollapseWhitespace(rootAcl.CombinedOutput)}");
+                    }
                 }
 
                 if (startResult.HasValue && (startResult.Value.ExitCode != 0 || !string.IsNullOrWhiteSpace(startResult.Value.CombinedOutput)))
