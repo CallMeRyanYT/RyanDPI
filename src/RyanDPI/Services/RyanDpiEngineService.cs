@@ -28,11 +28,15 @@ namespace RyanDPI.Services
         public static readonly string EngineByeDpiDir = Path.Combine(EngineRootDir, "byedpi");
         public static readonly string EngineProxiFyreDir = Path.Combine(EngineRootDir, "proxifyre");
         public static readonly string EngineDnsCryptDir = Path.Combine(EngineRootDir, "dnscrypt");
+        public static readonly string EngineUsqueDir = Path.Combine(EngineRootDir, "usque");
 
         public static readonly string EngineCiadpiExe = Path.Combine(EngineByeDpiDir, "ciadpi.exe");
         public static readonly string EngineProxiFyreExe = Path.Combine(EngineProxiFyreDir, "ProxiFyre.exe");
         public static readonly string EngineProxiFyreConfig = Path.Combine(EngineProxiFyreDir, "app-config.json");
         public static readonly string EngineDnsCryptExe = Path.Combine(EngineDnsCryptDir, "dnscrypt-proxy.exe");
+        public static readonly string EngineUsqueExe = Path.Combine(EngineUsqueDir, "usque.exe");
+        public static readonly string EngineUsqueConfig = Path.Combine(EngineUsqueDir, "config.json");
+        public static readonly string EngineServiceHostExe = Path.Combine(EngineUsqueDir, "RyanDPI.exe");
         public static readonly string EngineNetworkWatchScript = Path.Combine(EngineRootDir, "network-watch.ps1");
         public static readonly string EngineLastNetworkStateFile = Path.Combine(EngineRootDir, "last_net.txt");
 
@@ -259,8 +263,8 @@ namespace RyanDPI.Services
                         CommandRunner.Run("sc.exe", $"start {EngineServiceName}", 15000);
                     }
 
-                    var serviceRunning = await WaitForServiceRunningAsync(EngineServiceName, 5000);
-                    var portReady = serviceRunning && await WaitForLocalSocksPortAsync(RyanDpiSettings.DefaultSocksPort, 5000);
+                    var serviceRunning = await WaitForServiceRunningAsync(EngineServiceName, 8000);
+                    var portReady = serviceRunning && await WaitForLocalSocksPortAsync(settings.ActiveLocalEnginePort, settings.UsesBuiltInUsqueService ? 10000 : 5000);
                     if (!portReady)
                     {
                         LogService.Error($"RyanDPI engine failed verification (serviceRunning={serviceRunning}).");
@@ -343,12 +347,39 @@ namespace RyanDPI.Services
                     ServiceControlHelper.StopService(RouterServiceName);
                     ServiceControlHelper.StopService(EngineServiceName);
 
+                    // Ensure usque binaries are staged if switching to Brazil Built-in WARP MASQUE
+                    if (settings.UsesBuiltInUsqueService && (!File.Exists(EngineUsqueExe) || !File.Exists(EngineServiceHostExe)))
+                    {
+                        var srcUsque = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "usque", "usque.exe");
+                        Directory.CreateDirectory(EngineUsqueDir);
+                        if (File.Exists(srcUsque))
+                        {
+                            File.Copy(srcUsque, EngineUsqueExe, overwrite: true);
+                        }
+                        var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                        foreach (var hostFile in new[] { "RyanDPI.exe", "RyanDPI.dll", "RyanDPI.runtimeconfig.json", "RyanDPI.deps.json" })
+                        {
+                            var srcHost = Path.Combine(appBase, hostFile);
+                            if (File.Exists(srcHost))
+                            {
+                                File.Copy(srcHost, Path.Combine(EngineUsqueDir, hostFile), overwrite: true);
+                            }
+                        }
+                    }
+
+                    if (settings.UsesBuiltInUsqueService && !File.Exists(EngineUsqueConfig) && File.Exists(EngineUsqueExe))
+                    {
+                        CommandRunner.Run(EngineUsqueExe, $"register -a -c \"{EngineUsqueConfig}\"", 25000, EngineUsqueDir);
+                    }
+
                     WriteProxiFyreConfig(settings);
                     HardenEngineDirectoryAcls();
 
-                    var binPath = settings.BuildScBinPathValue(EngineCiadpiExe);
+                    var binPath = settings.UsesBuiltInUsqueService
+                        ? RyanDpiSettings.BuildUsqueScBinPathValue(EngineServiceHostExe, EngineUsqueExe, EngineUsqueConfig)
+                        : settings.BuildScBinPathValue(EngineCiadpiExe);
                     var cfgRes = CommandRunner.Run("sc.exe", $"config {EngineServiceName} binPath= \"{binPath}\"", 15000);
-                    LogService.Info($"Updated RyanDPI service parameters (exit code {cfgRes.ExitCode}).");
+                    LogService.Info($"Updated RyanDPI service parameters for {settings.Region} (exit code {cfgRes.ExitCode}).");
                 });
 
                 // Apply DNS mode change
@@ -519,7 +550,7 @@ namespace RyanDPI.Services
                 // Kill any lingering engine processes before deleting folder
                 await Task.Run(() =>
                 {
-                    foreach (var procName in new[] { "ProxiFyre", "ciadpi", "dnscrypt-proxy" })
+                    foreach (var procName in new[] { "ProxiFyre", "ciadpi", "dnscrypt-proxy", "usque" })
                     {
                         foreach (var p in Process.GetProcessesByName(procName))
                         {
@@ -557,30 +588,41 @@ namespace RyanDPI.Services
             }
         }
 
-        public async Task<List<SelfTestCheckResult>> RunSelfTestAsync()
+        public async Task<List<SelfTestCheckResult>> RunSelfTestAsync(RyanDpiSettings? activeSettings = null)
         {
+            var settings = activeSettings ?? RyanDpiSettings.Load();
             var results = new List<SelfTestCheckResult>();
 
             // 1. Local RyanDPI SOCKS5 Engine socket + service check
-            // Query Windows SCM states first so the stopwatch measures true local engine response time (~1 ms),
-            // not sc.exe child process spawn time.
             var engineSvcRunning = await Task.Run(() => ServiceControlHelper.QueryServiceState(EngineServiceName) == ComponentState.Running);
             var routerSvcRunning = await Task.Run(() => ServiceControlHelper.QueryServiceState(RouterServiceName) == ComponentState.Running);
 
+            int probePort = settings.ActiveLocalEnginePort;
+            string probeHost = "127.0.0.1";
+            if (settings.Region == RegionPreset.Brazil &&
+                settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5 &&
+                TryParseEndpoint(settings.CustomSocksEndpoint, out var cHost, out var cPort))
+            {
+                probeHost = cHost;
+                probePort = cPort;
+            }
+
             var sw = Stopwatch.StartNew();
-            var socksAlive = await ProbeTcpPortAsync("127.0.0.1", RyanDpiSettings.DefaultSocksPort, 1500);
+            var socksAlive = await ProbeTcpPortAsync(probeHost, probePort, 2000);
             sw.Stop();
 
             bool enginePassed = engineSvcRunning && routerSvcRunning && socksAlive;
             string engineSummary = enginePassed
-                ? LocalizationService.Tf("SelfTest_LocalEngineActive", RyanDpiSettings.DefaultSocksPort)
+                ? (settings.Region == RegionPreset.Brazil
+                    ? LocalizationService.Tf("SelfTest_BrazilEngineActive", $"{probeHost}:{probePort}")
+                    : LocalizationService.Tf("SelfTest_LocalEngineActive", probePort))
                 : (!engineSvcRunning && socksAlive)
                     ? LocalizationService.T("SelfTest_LocalEngineLegacy")
                     : !engineSvcRunning
                         ? LocalizationService.T("SelfTest_LocalEngineStopped")
                         : !routerSvcRunning
                             ? LocalizationService.T("SelfTest_LocalRouterStopped")
-                            : LocalizationService.Tf("SelfTest_LocalPortUnreachable", RyanDpiSettings.DefaultSocksPort);
+                            : LocalizationService.Tf("SelfTest_LocalPortUnreachable", probePort);
 
             results.Add(new SelfTestCheckResult
             {
@@ -590,16 +632,48 @@ namespace RyanDPI.Services
                 Summary = engineSummary
             });
 
-            // 2. DNS resolution check for blocked Turkey domains
+            // Brazil Mode: test Discord Split-Tunnel Exit Country/IP + Discord API through the Discord proxy,
+            // plus Direct Game Baseline Ping (proving 0ms game lag!)
+            if (settings.Region == RegionPreset.Brazil)
+            {
+                results.Add(await ProbeBrazilExitCountryAsync(probeHost, probePort, settings));
+
+                using var proxyHandler = CreateOptionalSocksHandler(
+                    socksAlive ? probeHost : null,
+                    probePort,
+                    settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5 ? settings.CustomSocksUsername : null,
+                    settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5 ? settings.CustomSocksPassword : null);
+                using var proxyHttp = new HttpClient(proxyHandler) { Timeout = TimeSpan.FromSeconds(8) };
+                proxyHttp.DefaultRequestHeaders.UserAgent.ParseAdd($"RyanDPI-HealthCheck/{AutoUpdateService.GetCurrentVersionString()}");
+
+                using var directHandler = CreateOptionalSocksHandler(null, 0, null, null);
+                using var directHttp = new HttpClient(directHandler) { Timeout = TimeSpan.FromSeconds(6) };
+                directHttp.DefaultRequestHeaders.UserAgent.ParseAdd($"RyanDPI-HealthCheck/{AutoUpdateService.GetCurrentVersionString()}");
+
+                var brChecks = await Task.WhenAll(
+                    ProbeHttpEndpointAsync(proxyHttp, LocalizationService.T("SelfTest_Discord"), "https://discord.com/api/v10/gateway", HttpMethod.Get),
+                    ProbeHttpEndpointAsync(proxyHttp, LocalizationService.T("SelfTest_DiscordMedia"), "https://cdn.discordapp.com/", HttpMethod.Head),
+                    ProbeHttpEndpointAsync(directHttp, LocalizationService.T("SelfTest_DirectGameBaseline"), "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get));
+
+                results.AddRange(brChecks);
+                return results;
+            }
+
+            // 2. DNS resolution check for blocked domains (Global / Turkey / Russia)
             sw.Restart();
             bool dnsPassed;
             string dnsInfo;
             try
             {
-                var dnsTasks = await Task.WhenAll(
-                    DnsResolutionAsync("discord.com"),
-                    DnsResolutionAsync("clientsettings.roblox.com"),
-                    DnsResolutionAsync("www.roblox.com"));
+                var dnsTasks = settings.Region == RegionPreset.Russia
+                    ? await Task.WhenAll(
+                        DnsResolutionAsync("discord.com"),
+                        DnsResolutionAsync("www.youtube.com"),
+                        DnsResolutionAsync("www.instagram.com"))
+                    : await Task.WhenAll(
+                        DnsResolutionAsync("discord.com"),
+                        DnsResolutionAsync("clientsettings.roblox.com"),
+                        DnsResolutionAsync("www.roblox.com"));
                 dnsPassed = dnsTasks[0].Length > 0 && dnsTasks[1].Length > 0 && dnsTasks[2].Length > 0;
                 dnsInfo = dnsPassed ? LocalizationService.T("SelfTest_DnsClean") : LocalizationService.T("SelfTest_DnsEmpty");
             }
@@ -618,111 +692,208 @@ namespace RyanDPI.Services
             });
 
             // 3. Parallel live HTTPS reachability + warm keep-alive ping tests
-            //    (goes through live system stack -> ProxiFyre -> RyanDpiEngine!)
-            using var handler = new SocketsHttpHandler
-            {
-                AllowAutoRedirect = true,
-                UseProxy = false,
-                ConnectTimeout = TimeSpan.FromSeconds(4),
-                PooledConnectionLifetime = TimeSpan.FromMinutes(1),
-                EnableMultipleHttp2Connections = true
-            };
+            using var handler = CreateOptionalSocksHandler(null, 0, null, null);
             using var http = new HttpClient(handler)
             {
                 Timeout = TimeSpan.FromSeconds(6)
             };
             http.DefaultRequestHeaders.UserAgent.ParseAdd($"RyanDPI-HealthCheck/{AutoUpdateService.GetCurrentVersionString()}");
 
-            var endpoints = new (string Name, string Url, HttpMethod WarmMethod)[]
-            {
-                (LocalizationService.T("SelfTest_Discord"), "https://discord.com/api/v10/gateway", HttpMethod.Get),
-                (LocalizationService.T("SelfTest_RobloxApp"), "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", HttpMethod.Get),
-                (LocalizationService.T("SelfTest_RobloxStudio"), "https://clientsettings.roblox.com/v2/client-version/WindowsStudio64", HttpMethod.Get),
-                (LocalizationService.T("SelfTest_RobloxWeb"), "https://www.roblox.com/", HttpMethod.Head),
-                (LocalizationService.T("SelfTest_Wattpad"), "https://www.wattpad.com/", HttpMethod.Head),
-                (LocalizationService.T("SelfTest_DirectBaseline"), "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get)
-            };
+            var endpoints = settings.Region == RegionPreset.Russia
+                ? new (string Name, string Url, HttpMethod WarmMethod)[]
+                {
+                    (LocalizationService.T("SelfTest_Discord"), "https://discord.com/api/v10/gateway", HttpMethod.Get),
+                    (LocalizationService.T("SelfTest_YouTube"), "https://www.youtube.com/", HttpMethod.Head),
+                    (LocalizationService.T("SelfTest_Instagram"), "https://www.instagram.com/", HttpMethod.Head),
+                    (LocalizationService.T("SelfTest_RobloxApp"), "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", HttpMethod.Get),
+                    (LocalizationService.T("SelfTest_RobloxWeb"), "https://www.roblox.com/", HttpMethod.Head),
+                    (LocalizationService.T("SelfTest_DirectBaseline"), "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get)
+                }
+                : new (string Name, string Url, HttpMethod WarmMethod)[]
+                {
+                    (LocalizationService.T("SelfTest_Discord"), "https://discord.com/api/v10/gateway", HttpMethod.Get),
+                    (LocalizationService.T("SelfTest_RobloxApp"), "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", HttpMethod.Get),
+                    (LocalizationService.T("SelfTest_RobloxStudio"), "https://clientsettings.roblox.com/v2/client-version/WindowsStudio64", HttpMethod.Get),
+                    (LocalizationService.T("SelfTest_RobloxWeb"), "https://www.roblox.com/", HttpMethod.Head),
+                    (LocalizationService.T("SelfTest_Wattpad"), "https://www.wattpad.com/", HttpMethod.Head),
+                    (LocalizationService.T("SelfTest_DirectBaseline"), "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get)
+                };
 
-            var endpointChecks = endpoints.Select(async ep =>
+            var endpointChecks = endpoints.Select(ep => ProbeHttpEndpointAsync(http, ep.Name, ep.Url, ep.WarmMethod));
+            results.AddRange(await Task.WhenAll(endpointChecks));
+            return results;
+        }
+
+        private static SocketsHttpHandler CreateOptionalSocksHandler(string? socksHost, int socksPort, string? user, string? pass)
+        {
+            var h = new SocketsHttpHandler
             {
-                var coldSw = Stopwatch.StartNew();
+                AllowAutoRedirect = true,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                PooledConnectionLifetime = TimeSpan.FromMinutes(1),
+                EnableMultipleHttp2Connections = true
+            };
+            if (!string.IsNullOrWhiteSpace(socksHost) && socksPort > 0)
+            {
+                var proxy = new WebProxy($"socks5://{socksHost}:{socksPort}");
+                if (!string.IsNullOrWhiteSpace(user))
+                {
+                    proxy.Credentials = new NetworkCredential(user, pass ?? string.Empty);
+                }
+                h.UseProxy = true;
+                h.Proxy = proxy;
+            }
+            else
+            {
+                h.UseProxy = false;
+            }
+            return h;
+        }
+
+        private static async Task<SelfTestCheckResult> ProbeBrazilExitCountryAsync(string host, int port, RyanDpiSettings settings)
+        {
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                using var handler = CreateOptionalSocksHandler(
+                    host, port,
+                    settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5 ? settings.CustomSocksUsername : null,
+                    settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5 ? settings.CustomSocksPassword : null);
+                using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(8) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd($"RyanDPI-HealthCheck/{AutoUpdateService.GetCurrentVersionString()}");
+
+                var trace = await http.GetStringAsync("https://1.1.1.1/cdn-cgi/trace");
+                sw.Stop();
+
+                string loc = "??";
+                string ip = "";
+                foreach (var line in trace.Split('\n'))
+                {
+                    if (line.StartsWith("loc=")) loc = line[4..].Trim();
+                    else if (line.StartsWith("ip=")) ip = line[3..].Trim();
+                }
+
+                bool isNonBrazil = !string.Equals(loc, "BR", StringComparison.OrdinalIgnoreCase);
+                string summary = isNonBrazil
+                    ? LocalizationService.Tf("SelfTest_BrazilExitNonBr", loc, ip)
+                    : LocalizationService.Tf("SelfTest_BrazilExitStillBr", ip);
+
+                return new SelfTestCheckResult
+                {
+                    Name = LocalizationService.T("SelfTest_BrazilExitCheck"),
+                    Passed = true,
+                    LatencyMs = sw.ElapsedMilliseconds,
+                    Summary = summary
+                };
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                return new SelfTestCheckResult
+                {
+                    Name = LocalizationService.T("SelfTest_BrazilExitCheck"),
+                    Passed = false,
+                    LatencyMs = sw.ElapsedMilliseconds,
+                    Summary = LocalizationService.Tf("SelfTest_BlockedFmt", ex.Message.Length > 55 ? ex.Message[..55] + "..." : ex.Message)
+                };
+            }
+        }
+
+        private static async Task<SelfTestCheckResult> ProbeHttpEndpointAsync(HttpClient http, string name, string url, HttpMethod warmMethod)
+        {
+            var coldSw = Stopwatch.StartNew();
+            try
+            {
+                using var coldReq = new HttpRequestMessage(HttpMethod.Get, url)
+                {
+                    Version = HttpVersion.Version20,
+                    VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+                };
+                using var coldResp = await http.SendAsync(coldReq, HttpCompletionOption.ResponseHeadersRead);
+                coldSw.Stop();
+                var coldMs = coldSw.ElapsedMilliseconds;
+                var code = (int)coldResp.StatusCode;
+                bool ok = code >= 200 && code < 500;
+
+                if (!ok)
+                {
+                    return new SelfTestCheckResult
+                    {
+                        Name = name,
+                        Passed = false,
+                        LatencyMs = coldMs,
+                        Summary = LocalizationService.Tf("SelfTest_UnexpectedHttp", code)
+                    };
+                }
+
+                if (warmMethod == HttpMethod.Get)
+                {
+                    try { await coldResp.Content.ReadAsByteArrayAsync(); } catch { }
+                }
+
+                long livePingMs = coldMs;
                 try
                 {
-                    using var coldReq = new HttpRequestMessage(HttpMethod.Get, ep.Url)
+                    var warmSw = Stopwatch.StartNew();
+                    using var warmReq = new HttpRequestMessage(warmMethod, url)
                     {
                         Version = HttpVersion.Version20,
                         VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
                     };
-                    using var coldResp = await http.SendAsync(coldReq, HttpCompletionOption.ResponseHeadersRead);
-                    coldSw.Stop();
-                    var coldMs = coldSw.ElapsedMilliseconds;
-                    var code = (int)coldResp.StatusCode;
-                    bool ok = code >= 200 && code < 500;
-
-                    if (!ok)
+                    using var warmResp = await http.SendAsync(warmReq, HttpCompletionOption.ResponseHeadersRead);
+                    warmSw.Stop();
+                    if ((int)warmResp.StatusCode >= 200 && (int)warmResp.StatusCode < 500)
                     {
-                        return new SelfTestCheckResult
-                        {
-                            Name = ep.Name,
-                            Passed = false,
-                            LatencyMs = coldMs,
-                            Summary = LocalizationService.Tf("SelfTest_UnexpectedHttp", code)
-                        };
+                        livePingMs = Math.Min(warmSw.ElapsedMilliseconds, coldMs);
                     }
-
-                    // Drain small JSON/trace payloads so HTTP/1.1 sockets can also stay pooled for the warm ping probe
-                    if (ep.WarmMethod == HttpMethod.Get)
-                    {
-                        try { await coldResp.Content.ReadAsByteArrayAsync(); } catch { }
-                    }
-
-                    // Measure true live round-trip ping over the established keep-alive / HTTP2 connection
-                    long livePingMs = coldMs;
-                    try
-                    {
-                        var warmSw = Stopwatch.StartNew();
-                        using var warmReq = new HttpRequestMessage(ep.WarmMethod, ep.Url)
-                        {
-                            Version = HttpVersion.Version20,
-                            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-                        };
-                        using var warmResp = await http.SendAsync(warmReq, HttpCompletionOption.ResponseHeadersRead);
-                        warmSw.Stop();
-                        if ((int)warmResp.StatusCode >= 200 && (int)warmResp.StatusCode < 500)
-                        {
-                            livePingMs = Math.Min(warmSw.ElapsedMilliseconds, coldMs);
-                        }
-                    }
-                    catch
-                    {
-                        // Keep cold measurement if warm probe fails
-                    }
-
-                    return new SelfTestCheckResult
-                    {
-                        Name = ep.Name,
-                        Passed = true,
-                        LatencyMs = livePingMs,
-                        Summary = LocalizationService.Tf("SelfTest_UnlockedFmt", code, coldMs)
-                    };
                 }
-                catch (Exception ex)
+                catch { }
+
+                return new SelfTestCheckResult
                 {
-                    coldSw.Stop();
-                    var shortErr = ex.InnerException?.Message ?? ex.Message;
-                    if (shortErr.Length > 60) shortErr = shortErr[..60] + "...";
-                    return new SelfTestCheckResult
-                    {
-                        Name = ep.Name,
-                        Passed = false,
-                        LatencyMs = coldSw.ElapsedMilliseconds,
-                        Summary = LocalizationService.Tf("SelfTest_BlockedFmt", shortErr)
-                    };
-                }
-            });
+                    Name = name,
+                    Passed = true,
+                    LatencyMs = livePingMs,
+                    Summary = LocalizationService.Tf("SelfTest_UnlockedFmt", code, coldMs)
+                };
+            }
+            catch (Exception ex)
+            {
+                coldSw.Stop();
+                var shortErr = ex.InnerException?.Message ?? ex.Message;
+                if (shortErr.Length > 60) shortErr = shortErr[..60] + "...";
+                return new SelfTestCheckResult
+                {
+                    Name = name,
+                    Passed = false,
+                    LatencyMs = coldSw.ElapsedMilliseconds,
+                    Summary = LocalizationService.Tf("SelfTest_BlockedFmt", shortErr)
+                };
+            }
+        }
 
-            results.AddRange(await Task.WhenAll(endpointChecks));
-            return results;
+        public static bool TryParseEndpoint(string? raw, out string host, out int port)
+        {
+            host = string.Empty;
+            port = 0;
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+
+            var cleaned = raw.Trim()
+                .Replace("socks5://", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("socks5h://", "", StringComparison.OrdinalIgnoreCase)
+                .TrimEnd('/');
+
+            int lastColon = cleaned.LastIndexOf(':');
+            if (lastColon <= 0 || lastColon >= cleaned.Length - 1) return false;
+
+            var h = cleaned[..lastColon].Trim().Trim('[', ']');
+            var pStr = cleaned[(lastColon + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(h) || !int.TryParse(pStr, out var p) || p < 1 || p > 65535)
+                return false;
+
+            host = h;
+            port = p;
+            return true;
         }
 
         private async Task<(bool Ok, bool NeedsReboot)> EnsurePrerequisitesAsync()
@@ -837,7 +1008,7 @@ namespace RyanDPI.Services
                     ServiceControlHelper.StopService(RouterServiceName);
                     ServiceControlHelper.StopService(EngineServiceName);
 
-                    foreach (var procName in new[] { "ProxiFyre", "ciadpi" })
+                    foreach (var procName in new[] { "ProxiFyre", "ciadpi", "usque" })
                     {
                         foreach (var p in Process.GetProcessesByName(procName))
                         {
@@ -847,9 +1018,26 @@ namespace RyanDPI.Services
 
                     Directory.CreateDirectory(EngineByeDpiDir);
                     Directory.CreateDirectory(EngineProxiFyreDir);
+                    Directory.CreateDirectory(EngineUsqueDir);
 
                     // Copy ciadpi.exe
                     File.Copy(srcByeDpi, EngineCiadpiExe, overwrite: true);
+
+                    // Stage usque.exe + lightweight RyanDPI service host for Brazil WARP MASQUE split-tunnel mode
+                    var srcUsque = Path.Combine(baseRes, "usque", "usque.exe");
+                    if (File.Exists(srcUsque))
+                    {
+                        File.Copy(srcUsque, EngineUsqueExe, overwrite: true);
+                        var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                        foreach (var hostFile in new[] { "RyanDPI.exe", "RyanDPI.dll", "RyanDPI.runtimeconfig.json", "RyanDPI.deps.json" })
+                        {
+                            var srcHost = Path.Combine(appBase, hostFile);
+                            if (File.Exists(srcHost))
+                            {
+                                File.Copy(srcHost, Path.Combine(EngineUsqueDir, hostFile), overwrite: true);
+                            }
+                        }
+                    }
 
                     // Copy ONLY ProxiFyre's expected binaries so ProxiFyre 2.6.1's
                     // EngineServiceInstallLocationPolicy never sees an unexpected PE file
@@ -892,17 +1080,17 @@ namespace RyanDPI.Services
         public static string BuildProxiFyreConfigJson(RyanDpiSettings settings)
         {
             // CRITICAL loop-prevention exclusions:
-            // For Windows services (tag != 0), ProxiFyre's owner_module_resolver resolves
-            // BOTH base_name and full_path to the WINDOWS SERVICE NAME via I_QueryTagInformation
-            // (e.g. "RyanDpiEngine", "dnscrypt-proxy", "ProxiFyreService") rather than "ciadpi.exe"!
-            // Excluding both the exact Windows service names AND the executable names/paths
-            // guarantees zero infinite routing loops in both service mode and interactive mode.
+            // Exclude exact Windows service names AND executable names/paths so neither ciadpi,
+            // usque (Brazil WARP MASQUE), ProxiFyre, nor dnscrypt-proxy can ever loop back.
             var excludes = new List<string>
             {
                 EngineServiceName,
                 "ciadpi",
                 "ciadpi.exe",
                 EngineCiadpiExe,
+                "usque",
+                "usque.exe",
+                EngineUsqueExe,
                 RouterServiceName,
                 "ProxiFyre",
                 "ProxiFyre.exe",
@@ -923,29 +1111,75 @@ namespace RyanDPI.Services
                 }
             }
 
-            var protocols = settings.TunnelUdp
-                ? new List<string> { "TCP", "UDP" }
-                : new List<string> { "TCP" };
+            var rules = new List<ProxiFyreRuleDto>();
+
+            if (settings.Region == RegionPreset.Brazil)
+            {
+                // Brazil ANPD Discord Screen-Share / Video Split Tunnel:
+                // Routes ONLY Discord (+ optional browsers for Discord Web) through the Geo-Unblock
+                // SOCKS5 tunnel, leaving 100% of games (Valorant, CS2, Roblox, Steam, etc.) completely
+                // direct at 0ms extra ping!
+                var brApps = new List<string> { "Discord", "DiscordPTB", "DiscordCanary", "Update" };
+                if (settings.BrazilIncludeBrowsers)
+                {
+                    brApps.AddRange(new[] { "chrome", "msedge", "firefox", "brave", "opera" });
+                }
+
+                string endpoint = $"127.0.0.1:{RyanDpiSettings.UsqueSocksPort}";
+                string? user = null;
+                string? pass = null;
+
+                if (settings.BrazilTunnel == BrazilTunnelMode.CustomSocks5 &&
+                    TryParseEndpoint(settings.CustomSocksEndpoint, out var customHost, out var customPort))
+                {
+                    endpoint = $"{customHost}:{customPort}";
+                    if (!string.IsNullOrWhiteSpace(settings.CustomSocksUsername))
+                    {
+                        user = settings.CustomSocksUsername.Trim();
+                        pass = settings.CustomSocksPassword ?? string.Empty;
+                    }
+                }
+
+                rules.Add(new ProxiFyreRuleDto
+                {
+                    AppNames = brApps,
+                    Socks5ProxyEndpoint = endpoint,
+                    Username = user,
+                    Password = pass,
+                    SupportedProtocols = settings.BrazilIncludeUdp
+                        ? new List<string> { "TCP", "UDP" }
+                        : new List<string> { "TCP" }
+                });
+            }
+            else
+            {
+                var protocols = settings.TunnelUdp
+                    ? new List<string> { "TCP", "UDP" }
+                    : new List<string> { "TCP" };
+
+                rules.Add(new ProxiFyreRuleDto
+                {
+                    // Empty string "" is ProxiFyre 2.x's global catch-all matcher:
+                    // unlocks EVERY app (Discord, Roblox Studio, Roblox Player, YouTube, browsers, etc.)
+                    AppNames = new List<string> { "" },
+                    Socks5ProxyEndpoint = $"127.0.0.1:{RyanDpiSettings.DefaultSocksPort}",
+                    SupportedProtocols = protocols
+                });
+            }
 
             var configObj = new ProxiFyreConfigDto
             {
                 LogLevel = "Error",
                 BypassLan = settings.BypassLan,
-                Proxies = new List<ProxiFyreRuleDto>
-                {
-                    new()
-                    {
-                        // Empty string "" is ProxiFyre 2.x's global catch-all matcher:
-                        // unlocks EVERY app (Roblox Studio, Roblox Player, Discord, browsers, CLI tools, etc.)
-                        AppNames = new List<string> { "" },
-                        Socks5ProxyEndpoint = $"127.0.0.1:{RyanDpiSettings.DefaultSocksPort}",
-                        SupportedProtocols = protocols
-                    }
-                },
+                Proxies = rules,
                 Excludes = excludes
             };
 
-            return JsonSerializer.Serialize(configObj, new JsonSerializerOptions { WriteIndented = true });
+            return JsonSerializer.Serialize(configObj, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            });
         }
 
         private static void WriteProxiFyreConfig(RyanDpiSettings settings)
@@ -996,10 +1230,43 @@ namespace RyanDPI.Services
             {
                 ServiceControlHelper.StopAndDeleteService(EngineServiceName);
 
-                var binPath = settings.BuildScBinPathValue(EngineCiadpiExe);
-                LogService.Info($"Registering {EngineServiceName} service...");
+                string binPath;
+                int expectedPort;
+                string displayName;
+                string description;
+
+                if (settings.UsesBuiltInUsqueService)
+                {
+                    if (!File.Exists(EngineUsqueExe) || !File.Exists(EngineServiceHostExe))
+                    {
+                        LogService.Error("Built-in Brazil WARP MASQUE binary (usque.exe) is missing.");
+                        return false;
+                    }
+
+                    // Pre-register zero-login Cloudflare WARP MASQUE device key if not enrolled yet
+                    if (!File.Exists(EngineUsqueConfig))
+                    {
+                        LogService.Info("Registering zero-login Cloudflare WARP MASQUE key for Brazil Split-Tunnel...");
+                        var reg = CommandRunner.Run(EngineUsqueExe, $"register -a -c \"{EngineUsqueConfig}\"", 25000, EngineUsqueDir);
+                        LogService.Info($"usque register exit={reg.ExitCode}");
+                    }
+
+                    binPath = RyanDpiSettings.BuildUsqueScBinPathValue(EngineServiceHostExe, EngineUsqueExe, EngineUsqueConfig);
+                    expectedPort = RyanDpiSettings.UsqueSocksPort;
+                    displayName = "RyanDPI Geo-Unblock Engine (WARP MASQUE)";
+                    description = "RyanDPI Discord-only zero-game-lag split-tunnel engine.";
+                }
+                else
+                {
+                    binPath = settings.BuildScBinPathValue(EngineCiadpiExe);
+                    expectedPort = RyanDpiSettings.DefaultSocksPort;
+                    displayName = "RyanDPI Engine";
+                    description = "RyanDPI local full-speed DPI bypass engine.";
+                }
+
+                LogService.Info($"Registering {EngineServiceName} service ({settings.Region})...");
                 var createRes = await CreateServiceWithRetryAsync(
-                    $"create {EngineServiceName} binPath= \"{binPath}\" start= auto type= own DisplayName= \"RyanDPI Engine\"");
+                    $"create {EngineServiceName} binPath= \"{binPath}\" start= auto type= own DisplayName= \"{displayName}\"");
 
                 if (createRes.ExitCode != 0)
                 {
@@ -1007,15 +1274,15 @@ namespace RyanDPI.Services
                     return false;
                 }
 
-                CommandRunner.Run("sc.exe", $"description {EngineServiceName} \"RyanDPI local full-speed DPI bypass engine.\"", 10000);
+                CommandRunner.Run("sc.exe", $"description {EngineServiceName} \"{description}\"", 10000);
                 CommandRunner.Run("sc.exe", $"failure {EngineServiceName} reset= 86400 actions= restart/3000/restart/5000/restart/10000", 10000);
 
                 var startRes = CommandRunner.Run("sc.exe", $"start {EngineServiceName}", 15000);
                 LogService.Info($"{EngineServiceName} start exit code: {startRes.ExitCode}");
 
-                var svcRunning = await WaitForServiceRunningAsync(EngineServiceName, 5000);
-                var portUp = svcRunning && await WaitForLocalSocksPortAsync(RyanDpiSettings.DefaultSocksPort, 5000);
-                LogService.Info($"Engine service running={svcRunning}, local SOCKS5 127.0.0.1:{RyanDpiSettings.DefaultSocksPort} ready={portUp}");
+                var svcRunning = await WaitForServiceRunningAsync(EngineServiceName, 8000);
+                var portUp = svcRunning && await WaitForLocalSocksPortAsync(expectedPort, settings.UsesBuiltInUsqueService ? 12000 : 5000);
+                LogService.Info($"Engine service running={svcRunning}, local SOCKS5 127.0.0.1:{expectedPort} ready={portUp}");
                 return portUp;
             });
         }
@@ -1095,6 +1362,7 @@ namespace RyanDPI.Services
                 var rules = new (string Name, string Program)[]
                 {
                     ("RyanDPI Engine", EngineCiadpiExe),
+                    ("RyanDPI Geo Engine", EngineUsqueExe),
                     ("RyanDPI Router", EngineProxiFyreExe),
                     ("RyanDPI Encrypted DNS", EngineDnsCryptExe)
                 };
@@ -1126,6 +1394,7 @@ namespace RyanDPI.Services
             var names = new[]
             {
                 "RyanDPI Engine TCP-In", "RyanDPI Engine UDP-In", "RyanDPI Engine In", "RyanDPI Engine Out",
+                "RyanDPI Geo Engine TCP-In", "RyanDPI Geo Engine UDP-In", "RyanDPI Geo Engine In", "RyanDPI Geo Engine Out",
                 "RyanDPI Router TCP-In", "RyanDPI Router UDP-In", "RyanDPI Router In", "RyanDPI Router Out",
                 "RyanDPI Encrypted DNS TCP-In", "RyanDPI Encrypted DNS UDP-In", "RyanDPI Encrypted DNS In", "RyanDPI Encrypted DNS Out",
                 "ProxiFyre Inbound", "ProxiFyre Outbound",
@@ -1440,6 +1709,12 @@ if ($networkChanged) {{
 
             [JsonPropertyName("socks5ProxyEndpoint")]
             public string Socks5ProxyEndpoint { get; set; } = string.Empty;
+
+            [JsonPropertyName("username")]
+            public string? Username { get; set; }
+
+            [JsonPropertyName("password")]
+            public string? Password { get; set; }
 
             [JsonPropertyName("supportedProtocols")]
             public List<string> SupportedProtocols { get; set; } = new();

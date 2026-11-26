@@ -4,9 +4,21 @@ import android.content.Context
 import android.content.SharedPreferences
 import java.util.Locale
 
+enum class RegionPreset {
+    GLOBAL_UNIVERSAL,
+    TURKEY,
+    RUSSIA,
+    BRAZIL
+}
+
+enum class BrazilTunnelMode {
+    BUILTIN_WARP_MASQUE,
+    CUSTOM_SOCKS5
+}
+
 enum class DnsMode {
-    ENCRYPTED_DOH,     // Built-in HTTPS DoH gateway (1.1.1.1 / 8.8.8.8 / 9.9.9.9) — defeats Turkish ISP UDP/53 blocks!
-    DIRECT_NATIVE_DNS  // Direct C tunnel (hev -> ciadpi) using clean IP DNS / Android Private DNS
+    ENCRYPTED_DOH,
+    DIRECT_NATIVE_DNS
 }
 
 enum class DohProvider(val displayName: String, val endpointUrl: String, val plainIp: String) {
@@ -18,14 +30,24 @@ enum class DohProvider(val displayName: String, val endpointUrl: String, val pla
 
 enum class BypassProfile {
     AUTO_UNIVERSAL,
+    RUSSIA_TSPU,
     CLASSIC_BYEDPI,
     STRICT_ISP,
     CUSTOM
 }
 
+data class ParsedSocksEndpoint(val host: String, val port: Int)
+
 data class RyanDpiSettings(
     val isDarkTheme: Boolean = true,
     val language: String = "en",
+    val regionConfigured: Boolean = false,
+    val region: RegionPreset = RegionPreset.GLOBAL_UNIVERSAL,
+    val brazilTunnel: BrazilTunnelMode = BrazilTunnelMode.BUILTIN_WARP_MASQUE,
+    val brazilIncludeBrowsers: Boolean = false,
+    val customSocksEndpoint: String = "",
+    val customSocksUsername: String = "",
+    val customSocksPassword: String = "",
     val dnsMode: DnsMode = DnsMode.ENCRYPTED_DOH,
     val dohProvider: DohProvider = DohProvider.CLOUDFLARE,
     val bypassProfile: BypassProfile = BypassProfile.AUTO_UNIVERSAL,
@@ -39,20 +61,32 @@ data class RyanDpiSettings(
     companion object {
         const val GATEWAY_PORT = 1080
         const val CIADPI_INTERNAL_PORT = 1081
+        const val USQUE_SOCKS_PORT = 1082
         const val VIRTUAL_TUN_IPV4 = "10.10.10.1"
         const val VIRTUAL_DNS_IPV4 = "10.10.10.2"
         const val VIRTUAL_TUN_IPV6 = "fd00::1"
         const val TUN_MTU = 8500
 
-        // Exact zero-retransmit Stage-1 strategy matching RyanDPI Windows v2.3.2+:
-        // Unlocks Discord, Roblox, Roblox Studio, Wattpad, and all Turkey-blocked services on the first packet
-        // with 0ms added retransmit lag, plus 5 automatic ISP fallback stages.
+        val SUPPORTED_LANGUAGES = listOf("en", "tr", "pt", "ru", "fa", "id", "zh", "ar")
+
+        // 7-stage Global Zero-Lag strategy (matches RyanDPI Windows v3.0.0 Unbound):
+        // Stage 1 (--tlsrec 1+s) gives 0ms added lag in Turkey / light DPI, while Stages 2-6
+        // auto-adapt for Russia TSPU (YouTube/Discord/Instagram), Superonline & mobile ISPs.
         const val AUTO_UNIVERSAL_STRATEGY =
             "--tlsrec 1+s --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --disorder 3+s " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
+                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err"
+
+        const val RUSSIA_TSPU_STRATEGY =
+            "--split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
+                "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err"
 
         const val CLASSIC_BYEDPI_STRATEGY =
@@ -61,19 +95,51 @@ data class RyanDpiSettings(
         const val STRICT_ISP_STRATEGY =
             "--tlsrec 1+s --split 1 --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --disorder 3+s " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
                 "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err"
 
         private const val PREFS_NAME = "ryandpi_settings"
 
         fun normalizeLanguage(code: String?): String {
-            return if (code != null && code.trim().lowercase(Locale.ROOT).startsWith("tr")) "tr" else "en"
+            val raw = code?.trim()?.lowercase(Locale.ROOT).orEmpty()
+            return when {
+                raw.startsWith("tr") -> "tr"
+                raw.startsWith("pt") -> "pt"
+                raw.startsWith("ru") -> "ru"
+                raw.startsWith("fa") || raw.startsWith("pr") -> "fa"
+                raw.startsWith("id") || raw.startsWith("in") -> "id"
+                raw.startsWith("zh") || raw.startsWith("cn") -> "zh"
+                raw.startsWith("ar") -> "ar"
+                else -> "en"
+            }
+        }
+
+        fun nextLanguage(current: String): String {
+            val norm = normalizeLanguage(current)
+            val idx = SUPPORTED_LANGUAGES.indexOf(norm).coerceAtLeast(0)
+            return SUPPORTED_LANGUAGES[(idx + 1) % SUPPORTED_LANGUAGES.size]
+        }
+
+        fun parseSocksEndpoint(raw: String?): ParsedSocksEndpoint? {
+            if (raw.isNullOrBlank()) return null
+            val cleaned = raw.trim()
+                .removePrefix("socks5://")
+                .removePrefix("socks5h://")
+                .trimEnd('/')
+            val lastColon = cleaned.lastIndexOf(':')
+            if (lastColon <= 0 || lastColon >= cleaned.length - 1) return null
+            val host = cleaned.substring(0, lastColon).trim().trim('[', ']')
+            val port = cleaned.substring(lastColon + 1).trim().toIntOrNull() ?: return null
+            if (host.isBlank() || port !in 1..65535) return null
+            return ParsedSocksEndpoint(host, port)
         }
 
         fun load(context: Context): RyanDpiSettings {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val defaultLang = normalizeLanguage(Locale.getDefault().language)
+            val regionName = prefs.getString("region_preset", RegionPreset.GLOBAL_UNIVERSAL.name)
+            val brTunnelName = prefs.getString("brazil_tunnel", BrazilTunnelMode.BUILTIN_WARP_MASQUE.name)
             val dnsModeName = prefs.getString("dns_mode", DnsMode.ENCRYPTED_DOH.name)
             val dohName = prefs.getString("doh_provider", DohProvider.CLOUDFLARE.name)
             val profileName = prefs.getString("bypass_profile", BypassProfile.AUTO_UNIVERSAL.name)
@@ -83,6 +149,13 @@ data class RyanDpiSettings(
             return RyanDpiSettings(
                 isDarkTheme = prefs.getBoolean("dark_theme", true),
                 language = normalizeLanguage(prefs.getString("language", defaultLang)),
+                regionConfigured = prefs.getBoolean("region_configured", false),
+                region = runCatching { RegionPreset.valueOf(regionName ?: "") }.getOrDefault(RegionPreset.GLOBAL_UNIVERSAL),
+                brazilTunnel = runCatching { BrazilTunnelMode.valueOf(brTunnelName ?: "") }.getOrDefault(BrazilTunnelMode.BUILTIN_WARP_MASQUE),
+                brazilIncludeBrowsers = prefs.getBoolean("brazil_include_browsers", false),
+                customSocksEndpoint = prefs.getString("custom_socks_endpoint", "") ?: "",
+                customSocksUsername = prefs.getString("custom_socks_user", "") ?: "",
+                customSocksPassword = prefs.getString("custom_socks_pass", "") ?: "",
                 dnsMode = runCatching { DnsMode.valueOf(dnsModeName ?: "") }.getOrDefault(DnsMode.ENCRYPTED_DOH),
                 dohProvider = runCatching { DohProvider.valueOf(dohName ?: "") }.getOrDefault(DohProvider.CLOUDFLARE),
                 bypassProfile = runCatching { BypassProfile.valueOf(profileName ?: "") }.getOrDefault(BypassProfile.AUTO_UNIVERSAL),
@@ -100,6 +173,13 @@ data class RyanDpiSettings(
             prefs.edit()
                 .putBoolean("dark_theme", settings.isDarkTheme)
                 .putString("language", normalizeLanguage(settings.language))
+                .putBoolean("region_configured", settings.regionConfigured)
+                .putString("region_preset", settings.region.name)
+                .putString("brazil_tunnel", settings.brazilTunnel.name)
+                .putBoolean("brazil_include_browsers", settings.brazilIncludeBrowsers)
+                .putString("custom_socks_endpoint", settings.customSocksEndpoint)
+                .putString("custom_socks_user", settings.customSocksUsername)
+                .putString("custom_socks_pass", settings.customSocksPassword)
                 .putString("dns_mode", settings.dnsMode.name)
                 .putString("doh_provider", settings.dohProvider.name)
                 .putString("bypass_profile", settings.bypassProfile.name)
@@ -113,6 +193,37 @@ data class RyanDpiSettings(
         }
     }
 
+    fun withRegionPreset(selected: RegionPreset): RyanDpiSettings {
+        return when (selected) {
+            RegionPreset.TURKEY -> copy(
+                region = selected,
+                regionConfigured = true,
+                bypassProfile = BypassProfile.AUTO_UNIVERSAL,
+                dnsMode = DnsMode.ENCRYPTED_DOH,
+                udpBypass = true
+            )
+            RegionPreset.RUSSIA -> copy(
+                region = selected,
+                regionConfigured = true,
+                bypassProfile = BypassProfile.RUSSIA_TSPU,
+                dnsMode = DnsMode.ENCRYPTED_DOH,
+                udpBypass = true
+            )
+            RegionPreset.BRAZIL -> copy(
+                region = selected,
+                regionConfigured = true,
+                dnsMode = DnsMode.DIRECT_NATIVE_DNS
+            )
+            RegionPreset.GLOBAL_UNIVERSAL -> copy(
+                region = selected,
+                regionConfigured = true,
+                bypassProfile = BypassProfile.AUTO_UNIVERSAL,
+                dnsMode = DnsMode.ENCRYPTED_DOH,
+                udpBypass = true
+            )
+        }
+    }
+
     fun activeCiadpiPort(): Int {
         return if (dnsMode == DnsMode.ENCRYPTED_DOH) CIADPI_INTERNAL_PORT else GATEWAY_PORT
     }
@@ -120,6 +231,7 @@ data class RyanDpiSettings(
     fun activeStrategyString(): String {
         return when (bypassProfile) {
             BypassProfile.AUTO_UNIVERSAL -> AUTO_UNIVERSAL_STRATEGY
+            BypassProfile.RUSSIA_TSPU -> RUSSIA_TSPU_STRATEGY
             BypassProfile.CLASSIC_BYEDPI -> CLASSIC_BYEDPI_STRATEGY
             BypassProfile.STRICT_ISP -> STRICT_ISP_STRATEGY
             BypassProfile.CUSTOM -> customStrategyArgs.takeIf { it.isNotBlank() } ?: AUTO_UNIVERSAL_STRATEGY

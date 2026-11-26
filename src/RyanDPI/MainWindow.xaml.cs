@@ -64,6 +64,12 @@ namespace RyanDPI
             LoadSettingsIntoUI();
             ApplyLanguage();
 
+            // First-startup Country / Region Picker (shown once for new users; always re-openable via top Region pill)
+            if (!_settings.RegionConfigured && string.IsNullOrWhiteSpace(App.UpdatedToVersion))
+            {
+                OverlayRegionPicker.Visibility = Visibility.Visible;
+            }
+
             TxtLogs.Text = LogService.GetRecentLogsText();
             LogService.LineLogged += OnLogLineReceived;
         }
@@ -210,13 +216,128 @@ namespace RyanDPI
 
         private void BtnLanguageToggle_Click(object sender, RoutedEventArgs e)
         {
-            _settings.Language = LocalizationService.IsTurkish
-                ? LocalizationService.English
-                : LocalizationService.Turkish;
+            PopulateLanguagePickerButtons();
+            OverlayLanguagePicker.Visibility = Visibility.Visible;
+        }
+
+        private void BtnCloseLanguagePicker_Click(object sender, RoutedEventArgs e)
+        {
+            OverlayLanguagePicker.Visibility = Visibility.Collapsed;
+        }
+
+        private void PopulateLanguagePickerButtons()
+        {
+            GridLanguageOptions.Children.Clear();
+            var current = LocalizationService.NormalizeLanguage(_settings.Language);
+            var accentBrush = (Brush)TryFindResource("AccentCyanBrush") ?? Brushes.Crimson;
+            var primaryText = (Brush)TryFindResource("TextPrimaryBrush") ?? Brushes.White;
+            var secondaryText = (Brush)TryFindResource("TextSecondaryBrush") ?? Brushes.LightGray;
+            var secondaryBtnStyle = TryFindResource("SecondaryButtonStyle") as Style;
+
+            foreach (var opt in LocalizationService.AllLanguages)
+            {
+                var isSelected = opt.Code == current;
+                var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                panel.Children.Add(new TextBlock
+                {
+                    Text = opt.ShortLabel,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 11.5,
+                    Foreground = isSelected ? accentBrush : secondaryText,
+                    Width = 28,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                panel.Children.Add(new TextBlock
+                {
+                    Text = opt.NativeName,
+                    FontWeight = isSelected ? FontWeights.Bold : FontWeights.SemiBold,
+                    FontSize = 12,
+                    Foreground = primaryText,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+
+                var btn = new Button
+                {
+                    Content = panel,
+                    Tag = opt.Code,
+                    Style = secondaryBtnStyle,
+                    Height = 40,
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                    Padding = new Thickness(12, 0, 10, 0),
+                    Margin = new Thickness(4)
+                };
+                if (isSelected)
+                {
+                    btn.BorderBrush = accentBrush;
+                    btn.BorderThickness = new Thickness(1.4);
+                }
+                btn.Click += (_, _) => SelectLanguage(opt.Code);
+                GridLanguageOptions.Children.Add(btn);
+            }
+        }
+
+        public void SelectLanguage(string languageCode)
+        {
+            _settings.Language = LocalizationService.NormalizeLanguage(languageCode);
             _settings.Save();
             LocalizationService.SetLanguage(_settings.Language);
+            OverlayLanguagePicker.Visibility = Visibility.Collapsed;
             ApplyLanguage();
         }
+
+        private void BtnRegionPicker_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isBusy) return;
+            OverlayRegionPicker.Visibility = Visibility.Visible;
+        }
+
+        private void BtnCloseRegionPicker_Click(object sender, RoutedEventArgs e)
+        {
+            _settings.RegionConfigured = true;
+            _settings.Save();
+            OverlayRegionPicker.Visibility = Visibility.Collapsed;
+        }
+
+        private async void BtnPickRegion_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn || btn.Tag is not string tag) return;
+            if (!Enum.TryParse<RegionPreset>(tag, out var region)) return;
+
+            _settings.ApplyRegionPreset(region);
+            _settings.Save();
+
+            OverlayRegionPicker.Visibility = Visibility.Collapsed;
+            LoadSettingsIntoUI();
+            ApplyLanguage();
+
+            if (_currentStatus != null && _currentStatus.IsInstalled)
+            {
+                SetBusy(true, showProgressCard: false);
+                try
+                {
+                    var res = await _engine.ApplySettingsAndRestartAsync(_settings);
+                    ShowNotice(res.Message, res.Success);
+                }
+                finally
+                {
+                    SetBusy(false);
+                    await RefreshStatusAsync();
+                }
+            }
+            else if (_currentStatus != null)
+            {
+                RenderStatus(_currentStatus);
+            }
+        }
+
+        private string GetRegionShortTag(RegionPreset region) => region switch
+        {
+            RegionPreset.Turkey => LocalizationService.T("Region_TurkeyTag"),
+            RegionPreset.Russia => LocalizationService.T("Region_RussiaTag"),
+            RegionPreset.Brazil => LocalizationService.T("Region_BrazilTag"),
+            _ => LocalizationService.T("Region_GlobalTag")
+        };
 
         public void ApplyLanguage()
         {
@@ -225,12 +346,28 @@ namespace RyanDPI
             {
                 // Title bar & Navigation
                 TxtBrandBadge.Text = LocalizationService.T("Badge_AllAppsSpeed");
+                BtnRegionPicker.Content = GetRegionShortTag(_settings.Region);
+                BtnRegionPicker.ToolTip = LocalizationService.T("RegionButton_Tooltip");
                 BtnLanguageToggle.Content = LocalizationService.T("LangButton_Text");
                 BtnLanguageToggle.ToolTip = LocalizationService.T("LangButton_Tooltip");
                 BtnThemeToggle.ToolTip = LocalizationService.T("ThemeButton_Tooltip");
                 BtnMinimize.ToolTip = LocalizationService.T("Minimize_Tooltip");
                 BtnClose.ToolTip = LocalizationService.T("Close_Tooltip");
                 BtnRefreshStatus.ToolTip = LocalizationService.T("Refresh_Tooltip");
+
+                // First-startup / Country Picker overlay
+                TxtRegionPickerTitle.Text = LocalizationService.T("Region_PickerTitle");
+                TxtRegionPickerSubtitle.Text = LocalizationService.T("Region_PickerSubtitle");
+                TxtPickGlobalTitle.Text = LocalizationService.T("Region_GlobalTitle");
+                TxtPickGlobalDesc.Text = LocalizationService.T("Region_GlobalDesc");
+                TxtPickTurkeyTitle.Text = LocalizationService.T("Region_TurkeyTitle");
+                TxtPickTurkeyDesc.Text = LocalizationService.T("Region_TurkeyDesc");
+                TxtPickRussiaTitle.Text = LocalizationService.T("Region_RussiaTitle");
+                TxtPickRussiaDesc.Text = LocalizationService.T("Region_RussiaDesc");
+                TxtPickBrazilTitle.Text = LocalizationService.T("Region_BrazilTitle");
+                TxtPickBrazilDesc.Text = LocalizationService.T("Region_BrazilDesc");
+                BtnCloseRegionPicker.Content = LocalizationService.T("Region_PickerClose");
+                BtnCloseLanguagePicker.Content = LocalizationService.T("Close_Tooltip");
 
                 NavHome.Content = LocalizationService.T("Nav_Home");
                 NavSettings.Content = LocalizationService.T("Nav_Settings");
@@ -255,9 +392,31 @@ namespace RyanDPI
                 }
                 TxtSelfTestPlaceholder.Text = LocalizationService.T("SelfTest_Placeholder");
 
-                // Settings page
+                // Settings page — Region & Brazil Split Tunnel
+                TxtRegionSectionTitle.Text = LocalizationService.T("Settings_RegionTitle");
+                ItemRegionGlobal.Content = LocalizationService.T("Region_GlobalTitle");
+                ItemRegionTurkey.Content = LocalizationService.T("Region_TurkeyTitle");
+                ItemRegionRussia.Content = LocalizationService.T("Region_RussiaTitle");
+                ItemRegionBrazil.Content = LocalizationService.T("Region_BrazilTitle");
+                RefreshComboSelectionDisplay(CmbRegion);
+
+                TxtBrazilSectionTitle.Text = LocalizationService.T("Settings_BrazilCardTitle");
+                TxtBrazilNotice.Text = LocalizationService.T("Settings_BrazilNotice");
+                ItemBrazilWarp.Content = LocalizationService.T("Brazil_TunnelWarp");
+                ItemBrazilCustom.Content = LocalizationService.T("Brazil_TunnelCustom");
+                RefreshComboSelectionDisplay(CmbBrazilTunnel);
+                TxtCustomSocksEndpointLabel.Text = LocalizationService.T("Brazil_CustomEndpointLabel");
+                TxtCustomSocksUserLabel.Text = LocalizationService.T("Brazil_CustomUserLabel");
+                TxtCustomSocksPassLabel.Text = LocalizationService.T("Brazil_CustomPassLabel");
+                TxtBrazilUdpTitle.Text = LocalizationService.T("Brazil_UdpTitle");
+                TxtBrazilUdpDesc.Text = LocalizationService.T("Brazil_UdpDesc");
+                TxtBrazilBrowsersTitle.Text = LocalizationService.T("Brazil_BrowsersTitle");
+                TxtBrazilBrowsersDesc.Text = LocalizationService.T("Brazil_BrowsersDesc");
+
+                // Settings page — DPI Profile
                 TxtProfileSectionTitle.Text = LocalizationService.T("Settings_ProfileTitle");
                 ItemProfileAuto.Content = LocalizationService.T("Profile_AutoUniversal");
+                ItemProfileRussia.Content = LocalizationService.T("Profile_RussiaTspu");
                 ItemProfileClassic.Content = LocalizationService.T("Profile_Classic");
                 ItemProfileStrict.Content = LocalizationService.T("Profile_StrictIsp");
                 ItemProfileCustom.Content = LocalizationService.T("Profile_Custom");
@@ -304,6 +463,7 @@ namespace RyanDPI
                     BtnCheckUpdates.Content = LocalizationService.T("Btn_CheckUpdates");
                 }
 
+                UpdateRegionSectionVisibility();
                 UpdateProfileDescription();
                 UpdateDnsDescription();
 
@@ -417,7 +577,9 @@ namespace RyanDPI
                 StatusShieldGlow.Color = (Color)FindResource("SuccessColor");
 
                 TxtStatusHeadline.Text = LocalizationService.T("Status_ActiveHeadline");
-                TxtStatusSubtitle.Text = LocalizationService.T("Status_ActiveSubtitle");
+                TxtStatusSubtitle.Text = _settings.Region == RegionPreset.Brazil
+                    ? LocalizationService.T("Status_ActiveSubtitleBrazil")
+                    : LocalizationService.T("Status_ActiveSubtitle");
 
                 BtnPrimaryAction.Content = LocalizationService.T("Status_ActiveCta");
                 BtnPrimaryAction.Style = (Style)FindResource("SuccessButtonStyle");
@@ -457,7 +619,9 @@ namespace RyanDPI
                 TxtStatusHeadline.Text = LocalizationService.T("Status_ReadyHeadline");
                 TxtStatusSubtitle.Text = status.HasLegacyServices
                     ? LocalizationService.Tf("Status_ReadyLegacySubtitle", string.Join(", ", status.DetectedLegacyServices))
-                    : LocalizationService.T("Status_ReadySubtitle");
+                    : (_settings.Region == RegionPreset.Brazil
+                        ? LocalizationService.T("Status_ReadySubtitleBrazil")
+                        : LocalizationService.T("Status_ReadySubtitle"));
 
                 BtnPrimaryAction.Content = LocalizationService.T("Status_ReadyCta");
                 BtnPrimaryAction.Style = (Style)FindResource("PrimaryButtonStyle");
@@ -471,7 +635,9 @@ namespace RyanDPI
                 LocalizationService.T("State_Stopped"),
                 LocalizationService.T("State_NotSet"));
             SetPill(DotRouter, TxtRouterState, status.RouterState,
-                LocalizationService.T("State_AllApps"),
+                _settings.Region == RegionPreset.Brazil
+                    ? LocalizationService.T("State_DiscordOnly")
+                    : LocalizationService.T("State_AllApps"),
                 LocalizationService.T("State_Paused"),
                 LocalizationService.T("State_NotSet"));
 
@@ -705,7 +871,7 @@ namespace RyanDPI
 
             try
             {
-                var results = await _engine.RunSelfTestAsync();
+                var results = await _engine.RunSelfTestAsync(_settings);
                 _lastSelfTestRaw = results;
                 RenderSelfTestResults(results);
             }
@@ -746,21 +912,104 @@ namespace RyanDPI
 
         private void LoadSettingsIntoUI()
         {
-            SelectComboByTag(CmbProfile, _settings.Profile.ToString());
-            SelectComboByTag(CmbDnsMode, _settings.DnsMode.ToString());
-            TxtCustomArgs.Text = _settings.CustomStrategyArgs;
-            ChkBypassLan.IsChecked = _settings.BypassLan;
-            ChkTunnelUdp.IsChecked = _settings.TunnelUdp;
-            ChkAutoUpdate.IsChecked = _settings.AutoUpdateOnStartup;
-
-            _excludedApps.Clear();
-            foreach (var app in _settings.ExcludedApps)
+            _isUpdatingLanguage = true;
+            try
             {
-                _excludedApps.Add(app);
+                SelectComboByTag(CmbRegion, _settings.Region.ToString());
+                SelectComboByTag(CmbBrazilTunnel, _settings.BrazilTunnel.ToString());
+                TxtCustomSocksEndpoint.Text = _settings.CustomSocksEndpoint;
+                TxtCustomSocksUser.Text = _settings.CustomSocksUsername;
+                TxtCustomSocksPass.Text = _settings.CustomSocksPassword;
+                ChkBrazilIncludeUdp.IsChecked = _settings.BrazilIncludeUdp;
+                ChkBrazilIncludeBrowsers.IsChecked = _settings.BrazilIncludeBrowsers;
+
+                SelectComboByTag(CmbProfile, _settings.Profile.ToString());
+                SelectComboByTag(CmbDnsMode, _settings.DnsMode.ToString());
+                TxtCustomArgs.Text = _settings.CustomStrategyArgs;
+                ChkBypassLan.IsChecked = _settings.BypassLan;
+                ChkTunnelUdp.IsChecked = _settings.TunnelUdp;
+                ChkAutoUpdate.IsChecked = _settings.AutoUpdateOnStartup;
+
+                _excludedApps.Clear();
+                foreach (var app in _settings.ExcludedApps)
+                {
+                    _excludedApps.Add(app);
+                }
+                UpdateExcludesPlaceholder();
+                UpdateRegionSectionVisibility();
+                UpdateProfileDescription();
+                UpdateDnsDescription();
             }
-            UpdateExcludesPlaceholder();
+            finally
+            {
+                _isUpdatingLanguage = false;
+            }
+        }
+
+        private void CmbRegion_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isUpdatingLanguage) return;
+            var tag = (CmbRegion.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            if (Enum.TryParse<RegionPreset>(tag, out var region))
+            {
+                // Auto-select sensible defaults when user switches region in Settings
+                _isUpdatingLanguage = true;
+                try
+                {
+                    if (region == RegionPreset.Russia)
+                    {
+                        SelectComboByTag(CmbProfile, nameof(BypassProfile.RussiaTspu));
+                        SelectComboByTag(CmbDnsMode, nameof(DnsProtectionMode.EncryptedDnsProxy));
+                        ChkTunnelUdp.IsChecked = true;
+                    }
+                    else if (region == RegionPreset.Brazil)
+                    {
+                        SelectComboByTag(CmbDnsMode, nameof(DnsProtectionMode.KeepSystemDns));
+                    }
+                    else
+                    {
+                        SelectComboByTag(CmbProfile, nameof(BypassProfile.AutoUniversal));
+                        SelectComboByTag(CmbDnsMode, nameof(DnsProtectionMode.EncryptedDnsProxy));
+                        ChkTunnelUdp.IsChecked = false;
+                    }
+                }
+                finally
+                {
+                    _isUpdatingLanguage = false;
+                }
+            }
+            UpdateRegionSectionVisibility();
             UpdateProfileDescription();
             UpdateDnsDescription();
+        }
+
+        private void CmbBrazilTunnel_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isUpdatingLanguage) return;
+            UpdateRegionSectionVisibility();
+        }
+
+        private void UpdateRegionSectionVisibility()
+        {
+            if (CardBrazilSplitTunnel == null || CardDpiProfile == null || TxtRegionDescription == null) return;
+            var regionTag = (CmbRegion.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            bool isBrazil = regionTag == nameof(RegionPreset.Brazil);
+
+            CardBrazilSplitTunnel.Visibility = isBrazil ? Visibility.Visible : Visibility.Collapsed;
+            CardDpiProfile.Visibility = isBrazil ? Visibility.Collapsed : Visibility.Visible;
+
+            var brTunnelTag = (CmbBrazilTunnel.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            PanelCustomSocks.Visibility = (isBrazil && brTunnelTag == nameof(BrazilTunnelMode.CustomSocks5))
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            TxtRegionDescription.Text = regionTag switch
+            {
+                nameof(RegionPreset.Turkey) => LocalizationService.T("Region_TurkeyDesc"),
+                nameof(RegionPreset.Russia) => LocalizationService.T("Region_RussiaDesc"),
+                nameof(RegionPreset.Brazil) => LocalizationService.T("Region_BrazilDesc"),
+                _ => LocalizationService.T("Region_GlobalDesc")
+            };
         }
 
         private static void SelectComboByTag(ComboBox combo, string tag)
@@ -790,6 +1039,7 @@ namespace RyanDPI
             PanelCustomArgs.Visibility = tag == nameof(BypassProfile.Custom) ? Visibility.Visible : Visibility.Collapsed;
             TxtProfileDescription.Text = tag switch
             {
+                nameof(BypassProfile.RussiaTspu) => LocalizationService.T("Profile_Desc_Russia"),
                 nameof(BypassProfile.ClassicByeDpi) => LocalizationService.T("Profile_Desc_Classic"),
                 nameof(BypassProfile.StrictIsp) => LocalizationService.T("Profile_Desc_Strict"),
                 nameof(BypassProfile.Custom) => LocalizationService.T("Profile_Desc_Custom"),
@@ -879,8 +1129,31 @@ namespace RyanDPI
         {
             if (_isBusy) return;
 
+            var regionTag = (CmbRegion.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? nameof(RegionPreset.GlobalUniversal);
+            var brTunnelTag = (CmbBrazilTunnel.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? nameof(BrazilTunnelMode.BuiltInWarpMasque);
             var profileTag = (CmbProfile.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? nameof(BypassProfile.AutoUniversal);
             var dnsTag = (CmbDnsMode.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? nameof(DnsProtectionMode.EncryptedDnsProxy);
+
+            var parsedRegion = Enum.TryParse<RegionPreset>(regionTag, out var r) ? r : RegionPreset.GlobalUniversal;
+            var parsedBrTunnel = Enum.TryParse<BrazilTunnelMode>(brTunnelTag, out var bt) ? bt : BrazilTunnelMode.BuiltInWarpMasque;
+            var customEndpoint = TxtCustomSocksEndpoint.Text.Trim();
+
+            if (parsedRegion == RegionPreset.Brazil &&
+                parsedBrTunnel == BrazilTunnelMode.CustomSocks5 &&
+                !RyanDpiEngineService.TryParseEndpoint(customEndpoint, out _, out _))
+            {
+                ShowNotice(LocalizationService.T("Msg_CustomSocksInvalid"), isSuccess: false);
+                return;
+            }
+
+            _settings.Region = parsedRegion;
+            _settings.RegionConfigured = true;
+            _settings.BrazilTunnel = parsedBrTunnel;
+            _settings.CustomSocksEndpoint = customEndpoint;
+            _settings.CustomSocksUsername = TxtCustomSocksUser.Text.Trim();
+            _settings.CustomSocksPassword = TxtCustomSocksPass.Text;
+            _settings.BrazilIncludeUdp = ChkBrazilIncludeUdp.IsChecked == true;
+            _settings.BrazilIncludeBrowsers = ChkBrazilIncludeBrowsers.IsChecked == true;
 
             _settings.Profile = Enum.TryParse<BypassProfile>(profileTag, out var parsedProfile)
                 ? parsedProfile
@@ -893,6 +1166,8 @@ namespace RyanDPI
             _settings.TunnelUdp = ChkTunnelUdp.IsChecked == true;
             _settings.AutoUpdateOnStartup = ChkAutoUpdate.IsChecked == true;
             _settings.ExcludedApps = _excludedApps.ToList();
+
+            BtnRegionPicker.Content = GetRegionShortTag(_settings.Region);
 
             SetBusy(true, showProgressCard: false);
             BtnSaveApplySettings.Content = LocalizationService.T("Btn_Applying");

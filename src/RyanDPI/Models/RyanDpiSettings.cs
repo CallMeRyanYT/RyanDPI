@@ -3,6 +3,20 @@ using System.Text.Json;
 
 namespace RyanDPI.Models
 {
+    public enum RegionPreset
+    {
+        GlobalUniversal, // Worldwide zero-lag DPI bypass (Turkey + Russia TSPU + all DPI blocks)
+        Turkey,          // Turkey BTK zero-retransmit preset (Discord, Roblox, Roblox Studio, Wattpad)
+        Russia,          // Russia TSPU-first preset (Discord + Voice, YouTube, Instagram, Roblox)
+        Brazil           // Brazil ANPD Discord Screen Share / Video unlock (Discord-Only Split Tunnel, 0ms Game Lag)
+    }
+
+    public enum BrazilTunnelMode
+    {
+        BuiltInWarpMasque, // Free zero-login Cloudflare WARP over HTTP/3 MASQUE (usque on 127.0.0.1:1082)
+        CustomSocks5       // User-provided non-Brazil SOCKS5 proxy (US/AR/EU — 100% guaranteed non-BR IP)
+    }
+
     public enum DnsProtectionMode
     {
         EncryptedDnsProxy, // dnscrypt-proxy (127.0.0.1 / ::1) - works on Win 10 & 11
@@ -12,24 +26,39 @@ namespace RyanDPI.Models
 
     public enum BypassProfile
     {
-        AutoUniversal, // 6-stage adaptive Turkey ISP chain (Recommended)
+        AutoUniversal, // 7-stage zero-retransmit Global adaptive chain (Turkey + Russia TSPU + Worldwide)
+        RussiaTspu,    // Russia TSPU-first chain (YouTube, Discord, Instagram, Roblox on packet 1)
         ClassicByeDpi, // Classic lightweight ByeDPI strategy with full-speed buffers
-        StrictIsp,     // Aggressive TLS record + OOB + fake TTL chain
+        StrictIsp,     // Aggressive TLS record + OOB + fake SNI TTL chain
         Custom         // User-defined custom ciadpi.exe parameters
     }
 
     public sealed class RyanDpiSettings
     {
         public const int DefaultSocksPort = 1080;
+        public const int UsqueSocksPort = 1082;
 
-        // Zero-retransmit Stage 1 (--tlsrec 1+s) unlocks Turkish ISPs on the first packet with 0ms
-        // added DPI latency (no TCP out-of-order/retransmit lag!), with 5 automatic fallback stages.
+        // 7-stage Global Zero-Lag strategy:
+        // Stage 1 (--tlsrec 1+s) has 0ms added latency & unlocks Turkey / light DPI on packet 1.
+        // Stages 2-6 automatically adapt across Russia TSPU (YouTube/Discord/Instagram), Superonline,
+        // mobile networks, and strict global DPI firewalls; Stage 7 falls back cleanly to passthrough.
+        // Per-IP 24h caching (-u 86400 -L 3) locks onto the fastest working stage with zero extra lag!
         public const string AutoUniversalStrategy =
             "--tlsrec 1+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --disorder 3+s " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
+            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err";
+
+        // Russia TSPU-first chain: opens immediately with proven Rostelecom/MTS/YouTube/Discord split+disorder+tlsrec
+        public const string RussiaTspuStrategy =
+            "--split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
+            "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err";
 
         public const string ClassicByeDpiStrategy =
@@ -38,13 +67,24 @@ namespace RyanDPI.Models
         public const string StrictIspStrategy =
             "--tlsrec 1+s --split 1 --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --disorder 3+s " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
             "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err";
 
         public bool IsDarkTheme { get; set; } = true;
         public string Language { get; set; } = "en";
         public bool AutoUpdateOnStartup { get; set; } = true;
+
+        // Global / Country preset settings
+        public bool RegionConfigured { get; set; } = false;
+        public RegionPreset Region { get; set; } = RegionPreset.GlobalUniversal;
+        public BrazilTunnelMode BrazilTunnel { get; set; } = BrazilTunnelMode.BuiltInWarpMasque;
+        public bool BrazilIncludeBrowsers { get; set; } = false;
+        public bool BrazilIncludeUdp { get; set; } = true;
+        public string CustomSocksEndpoint { get; set; } = string.Empty;
+        public string CustomSocksUsername { get; set; } = string.Empty;
+        public string CustomSocksPassword { get; set; } = string.Empty;
+
         public DnsProtectionMode DnsMode { get; set; } = DnsProtectionMode.EncryptedDnsProxy;
         public BypassProfile Profile { get; set; } = BypassProfile.AutoUniversal;
         public string CustomStrategyArgs { get; set; } = AutoUniversalStrategy;
@@ -56,6 +96,45 @@ namespace RyanDPI.Models
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RyanDPI");
 
         public static string SettingsFilePath => Path.Combine(SettingsDirectory, "settings.json");
+
+        public bool UsesBuiltInUsqueService =>
+            Region == RegionPreset.Brazil && BrazilTunnel == BrazilTunnelMode.BuiltInWarpMasque;
+
+        public int ActiveLocalEnginePort =>
+            UsesBuiltInUsqueService ? UsqueSocksPort : DefaultSocksPort;
+
+        public void ApplyRegionPreset(RegionPreset region)
+        {
+            Region = region;
+            RegionConfigured = true;
+
+            switch (region)
+            {
+                case RegionPreset.Turkey:
+                    Profile = BypassProfile.AutoUniversal;
+                    DnsMode = DnsProtectionMode.EncryptedDnsProxy;
+                    TunnelUdp = false;
+                    break;
+
+                case RegionPreset.Russia:
+                    Profile = BypassProfile.RussiaTspu;
+                    DnsMode = DnsProtectionMode.EncryptedDnsProxy;
+                    TunnelUdp = true;
+                    break;
+
+                case RegionPreset.Brazil:
+                    Profile = BypassProfile.AutoUniversal;
+                    DnsMode = DnsProtectionMode.KeepSystemDns;
+                    BrazilIncludeUdp = true;
+                    break;
+
+                default: // GlobalUniversal
+                    Profile = BypassProfile.AutoUniversal;
+                    DnsMode = DnsProtectionMode.EncryptedDnsProxy;
+                    TunnelUdp = false;
+                    break;
+            }
+        }
 
         public string BuildCiadpiArguments()
         {
@@ -72,6 +151,7 @@ namespace RyanDPI.Models
 
             var rawStrategy = Profile switch
             {
+                BypassProfile.RussiaTspu => RussiaTspuStrategy,
                 BypassProfile.ClassicByeDpi => ClassicByeDpiStrategy,
                 BypassProfile.StrictIsp => StrictIspStrategy,
                 BypassProfile.Custom => string.IsNullOrWhiteSpace(CustomStrategyArgs)
@@ -97,6 +177,11 @@ namespace RyanDPI.Models
             return $"\\\"{executablePath}\\\" {args}";
         }
 
+        public static string BuildUsqueScBinPathValue(string hostExePath, string usqueExePath, string usqueConfigPath)
+        {
+            return $"\\\"{hostExePath}\\\" --service-usque \\\"{usqueExePath}\\\" \\\"{usqueConfigPath}\\\" {UsqueSocksPort}";
+        }
+
         public static RyanDpiSettings Load()
         {
             try
@@ -109,6 +194,9 @@ namespace RyanDPI.Models
                     {
                         loaded.ExcludedApps ??= new List<string>();
                         loaded.Language = Services.LocalizationService.NormalizeLanguage(loaded.Language);
+                        loaded.CustomSocksEndpoint ??= string.Empty;
+                        loaded.CustomSocksUsername ??= string.Empty;
+                        loaded.CustomSocksPassword ??= string.Empty;
                         if (string.IsNullOrWhiteSpace(loaded.CustomStrategyArgs))
                         {
                             loaded.CustomStrategyArgs = AutoUniversalStrategy;

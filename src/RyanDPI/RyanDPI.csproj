@@ -11,12 +11,12 @@
     <AssemblyName>RyanDPI</AssemblyName>
     <RootNamespace>RyanDPI</RootNamespace>
     <AssemblyTitle>RyanDPI</AssemblyTitle>
-    <AssemblyDescription>System-wide zero-speed-loss DPI bypass for Turkey</AssemblyDescription>
-    <AssemblyProduct>RyanDPI</AssemblyProduct>
+    <AssemblyDescription>RyanDPI Unbound — Global zero-lag DPI bypass &amp; split-tunnel unblocker</AssemblyDescription>
+    <AssemblyProduct>RyanDPI Unbound</AssemblyProduct>
     <AssemblyCompany>RyanDPI</AssemblyCompany>
-    <AssemblyVersion>2.4.0.0</AssemblyVersion>
-    <FileVersion>2.4.0.0</FileVersion>
-    <InformationalVersion>2.4.0</InformationalVersion>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
+    <InformationalVersion>3.0.0</InformationalVersion>
     <PublishTrimmed>false</PublishTrimmed>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <DebugType>none</DebugType>
@@ -42,6 +42,10 @@
     <Content Include="Resources\dnscrypt-proxy\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>res\dnscrypt-proxy\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+    <Content Include="Resources\usque\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>res\usque\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>
     <Content Include="..\Prerequisites\VC_redist.x64.exe" Condition="Exists('..\Prerequisites\VC_redist.x64.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

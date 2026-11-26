@@ -87,11 +87,23 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Language, Theme & Window Controls -->
+                <!-- Region, Language, Theme & Window Controls -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                             WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="BtnRegionPicker"
+                            Content="GLOBAL"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Height="28"
+                            MinWidth="58"
+                            Padding="9,0"
+                            FontSize="10.5"
+                            FontWeight="Bold"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            ToolTip="Select Country / Bypass Mode (Global, Turkey, Russia, Brazil)"
+                            Click="BtnRegionPicker_Click"
+                            Margin="0,0,6,0"/>
                     <Button x:Name="BtnLanguageToggle"
-                            Content="TR"
+                            Content="EN"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Height="28"
                             MinWidth="38"
@@ -99,7 +111,7 @@
                             FontSize="11"
                             FontWeight="Bold"
                             Foreground="{DynamicResource AccentCyanBrush}"
-                            ToolTip="Switch language to Turkish (Türkçe'ye geç)"
+                            ToolTip="Choose language (EN / TR / PT-BR / RU / FA / ID / ZH / AR)"
                             Click="BtnLanguageToggle_Click"
                             Margin="0,0,6,0"/>
                     <Button x:Name="BtnThemeToggle"
@@ -500,8 +512,136 @@
                 <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="18,0,18,12">
                     <StackPanel>
 
-                        <!-- Bypass Profile -->
+                        <!-- Country / Region Mode -->
                         <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock x:Name="TxtRegionSectionTitle"
+                                           Text="Country / Region Mode"
+                                           FontFamily="{StaticResource FontBold}"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,0,0,8"/>
+
+                                <ComboBox x:Name="CmbRegion"
+                                          Style="{StaticResource ModernComboBoxStyle}"
+                                          SelectionChanged="CmbRegion_SelectionChanged">
+                                    <ComboBoxItem x:Name="ItemRegionGlobal" Content="Universal Global (Recommended)" Tag="GlobalUniversal"/>
+                                    <ComboBoxItem x:Name="ItemRegionTurkey" Content="Turkey — BTK Zero-Lag" Tag="Turkey"/>
+                                    <ComboBoxItem x:Name="ItemRegionRussia" Content="Russia — TSPU Full Unblock" Tag="Russia"/>
+                                    <ComboBoxItem x:Name="ItemRegionBrazil" Content="Brazil — Discord Screen Share &amp; Video" Tag="Brazil"/>
+                                </ComboBox>
+
+                                <TextBlock x:Name="TxtRegionDescription"
+                                           Text="7-stage zero-lag DPI engine that auto-adapts across Turkey, Russia &amp; worldwide ISPs."
+                                           FontSize="11.5"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Brazil Discord-Only Split-Tunnel Card -->
+                        <Border x:Name="CardBrazilSplitTunnel" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock x:Name="TxtBrazilSectionTitle"
+                                           Text="Brazil Discord Split-Tunnel (0ms Game Lag)"
+                                           FontFamily="{StaticResource FontBold}"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource AccentCyanBrush}"
+                                           Margin="0,0,0,6"/>
+
+                                <TextBlock x:Name="TxtBrazilNotice"
+                                           Text="Discord disabled Screen Share &amp; Video in Brazil by Geo-IP (ANPD order), not ISP DPI. RyanDPI routes ONLY Discord while leaving all games 100% direct!"
+                                           FontSize="11.5"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10"/>
+
+                                <ComboBox x:Name="CmbBrazilTunnel"
+                                          Style="{StaticResource ModernComboBoxStyle}"
+                                          SelectionChanged="CmbBrazilTunnel_SelectionChanged">
+                                    <ComboBoxItem x:Name="ItemBrazilWarp" Content="Built-in Free Cloudflare WARP MASQUE (Zero Login)" Tag="BuiltInWarpMasque"/>
+                                    <ComboBoxItem x:Name="ItemBrazilCustom" Content="Custom Non-Brazil SOCKS5 Proxy (US / AR / EU — Guaranteed Non-BR IP)" Tag="CustomSocks5"/>
+                                </ComboBox>
+
+                                <StackPanel x:Name="PanelCustomSocks" Visibility="Collapsed" Margin="0,10,0,0">
+                                    <TextBlock x:Name="TxtCustomSocksEndpointLabel"
+                                               Text="Non-Brazil SOCKS5 Endpoint (host:port):"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TxtCustomSocksEndpoint"
+                                             Style="{StaticResource ModernTextBoxStyle}"
+                                             FontFamily="Consolas"
+                                             FontSize="12"
+                                             Height="34"
+                                             Margin="0,0,0,8"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock x:Name="TxtCustomSocksUserLabel"
+                                                       Text="Username (optional):"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox x:Name="TxtCustomSocksUser"
+                                                     Style="{StaticResource ModernTextBoxStyle}"
+                                                     FontSize="12"
+                                                     Height="34"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock x:Name="TxtCustomSocksPassLabel"
+                                                       Text="Password (optional):"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox x:Name="TxtCustomSocksPass"
+                                                     Style="{StaticResource ModernTextBoxStyle}"
+                                                     FontSize="12"
+                                                     Height="34"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+
+                                <Grid Margin="0,12,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock x:Name="TxtBrazilUdpTitle" Text="Route Discord UDP (Go Live Video &amp; Voice)" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock x:Name="TxtBrazilUdpDesc" Text="ON routes full Discord TCP+UDP. Turn OFF for API-only unlock (direct local UDP voice/video)."
+                                                   FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" x:Name="ChkBrazilIncludeUdp" Style="{StaticResource ToggleSwitchStyle}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock x:Name="TxtBrazilBrowsersTitle" Text="Also Route Web Browsers (Discord Web)" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock x:Name="TxtBrazilBrowsersDesc" Text="Include Chrome, Edge, Firefox, Brave &amp; Opera if you screen share in browser."
+                                                   FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" x:Name="ChkBrazilIncludeBrowsers" Style="{StaticResource ToggleSwitchStyle}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Bypass Profile -->
+                        <Border x:Name="CardDpiProfile" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock x:Name="TxtProfileSectionTitle"
                                            Text="DPI Bypass Profile"
@@ -513,7 +653,8 @@
                                 <ComboBox x:Name="CmbProfile"
                                           Style="{StaticResource ModernComboBoxStyle}"
                                           SelectionChanged="CmbProfile_SelectionChanged">
-                                    <ComboBoxItem x:Name="ItemProfileAuto" Content="Auto Universal (Recommended — All Turkish ISPs)" Tag="AutoUniversal"/>
+                                    <ComboBoxItem x:Name="ItemProfileAuto" Content="Auto Universal (7-Stage Global — Turkey, Russia &amp; Worldwide)" Tag="AutoUniversal"/>
+                                    <ComboBoxItem x:Name="ItemProfileRussia" Content="Russia TSPU (YouTube, Discord, Instagram — First Packet)" Tag="RussiaTspu"/>
                                     <ComboBoxItem x:Name="ItemProfileClassic" Content="Classic Mode (Lightweight TLS Record Split)" Tag="ClassicByeDpi"/>
                                     <ComboBoxItem x:Name="ItemProfileStrict" Content="Strict ISP (Superonline / Mobile / Aggressive DPI)" Tag="StrictIsp"/>
                                     <ComboBoxItem x:Name="ItemProfileCustom" Content="Custom Arguments" Tag="Custom"/>
@@ -825,13 +966,13 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,12,0">
                             <TextBlock x:Name="TxtAboutVersion"
-                                       Text="RyanDPI v2.3.2 — System-Wide Zero-Speed-Loss DPI Bypass"
+                                       Text="RyanDPI v3.0.0 Unbound — Global Zero-Lag DPI Bypass &amp; Split-Tunnel"
                                        FontFamily="{StaticResource FontBold}"
                                        FontSize="12"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <TextBlock x:Name="TxtAboutSubtitle"
-                                       Text="100% local DPI desynchronization (no remote VPN servers). Built with ByeDPI, ProxiFyre &amp; DNSCrypt-Proxy."
+                                       Text="Turkey • Russia • Brazil • Worldwide. Built with ByeDPI, ProxiFyre, DNSCrypt-Proxy &amp; Usque WARP MASQUE."
                                        FontSize="11"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
@@ -847,6 +988,110 @@
                     </Grid>
                 </Border>
             </Grid>
+
+            <!-- ==================== FIRST-STARTUP / COUNTRY PICKER OVERLAY ==================== -->
+            <Border x:Name="OverlayRegionPicker"
+                    Grid.Row="0" Grid.RowSpan="3"
+                    Background="#E6060608"
+                    Visibility="Collapsed"
+                    Padding="24">
+                <Border Style="{StaticResource CardBorderStyle}"
+                        BorderBrush="{DynamicResource AccentCyanBrush}"
+                        BorderThickness="1.2"
+                        VerticalAlignment="Center"
+                        Padding="22">
+                    <StackPanel>
+                        <TextBlock x:Name="TxtRegionPickerTitle"
+                                   Text="Choose Your Region Mode"
+                                   FontFamily="{StaticResource FontBold}"
+                                   FontSize="19"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock x:Name="TxtRegionPickerSubtitle"
+                                   Text="Select your country for instant zero-lag defaults, or use Universal Global across all DPI-censored ISPs."
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,4,0,16"/>
+
+                        <Button x:Name="BtnPickGlobal" Tag="GlobalUniversal" Click="BtnPickRegion_Click"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                HorizontalContentAlignment="Stretch" Height="Auto" Padding="14,11" Margin="0,0,0,9">
+                            <StackPanel>
+                                <TextBlock x:Name="TxtPickGlobalTitle" Text="Universal Global (Recommended)" FontFamily="{StaticResource FontBold}" FontSize="13.5" Foreground="{DynamicResource AccentCyanBrush}"/>
+                                <TextBlock x:Name="TxtPickGlobalDesc" Text="7-stage zero-lag DPI engine that auto-adapts across Turkey, Russia &amp; worldwide ISPs with 24h per-IP caching." FontSize="11.5" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnPickTurkey" Tag="Turkey" Click="BtnPickRegion_Click"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                HorizontalContentAlignment="Stretch" Height="Auto" Padding="14,11" Margin="0,0,0,9">
+                            <StackPanel>
+                                <TextBlock x:Name="TxtPickTurkeyTitle" Text="Turkey — BTK Zero-Lag" FontFamily="{StaticResource FontBold}" FontSize="13.5" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock x:Name="TxtPickTurkeyDesc" Text="Unlocks Discord, Roblox, Roblox Studio &amp; Wattpad at full speed. UDP stays direct for 0ms gaming ping." FontSize="11.5" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnPickRussia" Tag="Russia" Click="BtnPickRegion_Click"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                HorizontalContentAlignment="Stretch" Height="Auto" Padding="14,11" Margin="0,0,0,9">
+                            <StackPanel>
+                                <TextBlock x:Name="TxtPickRussiaTitle" Text="Russia — TSPU Full Unblock" FontFamily="{StaticResource FontBold}" FontSize="13.5" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock x:Name="TxtPickRussiaDesc" Text="TSPU-first split/disorder/fake-SNI chain + UDP voice bypass for YouTube, Discord, Instagram &amp; Roblox." FontSize="11.5" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnPickBrazil" Tag="Brazil" Click="BtnPickRegion_Click"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                HorizontalContentAlignment="Stretch" Height="Auto" Padding="14,11" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock x:Name="TxtPickBrazilTitle" Text="Brazil — Discord Screen Share &amp; Video" FontFamily="{StaticResource FontBold}" FontSize="13.5" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock x:Name="TxtPickBrazilDesc" Text="ANPD Geo-IP unlock: tunnels ONLY Discord (0ms lag in games!) via built-in WARP MASQUE or Custom SOCKS5." FontSize="11.5" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnCloseRegionPicker"
+                                Content="Continue"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Height="38"
+                                Click="BtnCloseRegionPicker_Click"/>
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- ==================== 8-LANGUAGE PICKER OVERLAY ==================== -->
+            <Border x:Name="OverlayLanguagePicker"
+                    Grid.Row="0" Grid.RowSpan="3"
+                    Background="#E6060608"
+                    Visibility="Collapsed"
+                    Padding="24">
+                <Border Style="{StaticResource CardBorderStyle}"
+                        BorderBrush="{DynamicResource AccentCyanBrush}"
+                        BorderThickness="1.2"
+                        VerticalAlignment="Center"
+                        Padding="22">
+                    <StackPanel>
+                        <TextBlock x:Name="TxtLangPickerTitle"
+                                   Text="Choose Language"
+                                   FontFamily="{StaticResource FontBold}"
+                                   FontSize="18"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock x:Name="TxtLangPickerSubtitle"
+                                   Text="RyanDPI Unbound supports 8 languages worldwide."
+                                   FontSize="11.5"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="0,4,0,14"/>
+
+                        <UniformGrid x:Name="GridLanguageOptions" Columns="2" Margin="0,0,0,12"/>
+
+                        <Button x:Name="BtnCloseLanguagePicker"
+                                Content="Close"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Height="36"
+                                Click="BtnCloseLanguagePicker_Click"/>
+                    </StackPanel>
+                </Border>
+            </Border>
 
         </Grid>
     </Border>

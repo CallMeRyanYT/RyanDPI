@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -38,9 +39,9 @@ import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Security
@@ -87,11 +88,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ryandpi.android.BuildConfig
+import com.ryandpi.android.engine.BrazilTunnelMode
 import com.ryandpi.android.engine.BypassProfile
 import com.ryandpi.android.engine.DnsMode
 import com.ryandpi.android.engine.DohProvider
 import com.ryandpi.android.engine.LogEntry
 import com.ryandpi.android.engine.LogLevel
+import com.ryandpi.android.engine.RegionPreset
 import com.ryandpi.android.engine.RyanDpiSettings
 import com.ryandpi.android.engine.VpnStatus
 import com.ryandpi.android.engine.VpnUiState
@@ -121,7 +124,7 @@ fun RyanDpiMainScreen(
     onReconnectApply: () -> Unit,
     onRunSelfTest: () -> Unit,
     onUpdateSettings: (RyanDpiSettings, Boolean) -> Unit,
-    onToggleLanguage: () -> Unit,
+    onSelectLanguage: (String) -> Unit,
     onToggleTheme: () -> Unit,
     onCheckUpdates: () -> Unit,
     onStartUpdateDownload: (AndroidUpdateInfo) -> Unit,
@@ -135,6 +138,8 @@ fun RyanDpiMainScreen(
     val s = remember(settings.language) { StringsRepository.forLanguage(settings.language) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showExcludedAppsDialog by remember { mutableStateOf(false) }
+    var showRegionPickerDialog by remember(settings.regionConfigured) { mutableStateOf(!settings.regionConfigured) }
+    var showLanguagePickerDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -147,7 +152,8 @@ fun RyanDpiMainScreen(
         TopHeaderBar(
             settings = settings,
             strings = s,
-            onToggleLanguage = onToggleLanguage,
+            onOpenRegionPicker = { showRegionPickerDialog = true },
+            onOpenLanguagePicker = { showLanguagePickerDialog = true },
             onToggleTheme = onToggleTheme
         )
 
@@ -200,6 +206,35 @@ fun RyanDpiMainScreen(
         }
     }
 
+    if (showRegionPickerDialog) {
+        RegionPickerDialog(
+            strings = s,
+            selectedRegion = settings.region,
+            onSelectRegion = { chosen ->
+                onUpdateSettings(settings.withRegionPreset(chosen), true)
+                showRegionPickerDialog = false
+            },
+            onDismiss = {
+                if (!settings.regionConfigured) {
+                    onUpdateSettings(settings.copy(regionConfigured = true), false)
+                }
+                showRegionPickerDialog = false
+            }
+        )
+    }
+
+    if (showLanguagePickerDialog) {
+        LanguagePickerDialog(
+            strings = s,
+            selectedLanguage = settings.language,
+            onSelectLanguage = { chosenCode ->
+                onSelectLanguage(chosenCode)
+                showLanguagePickerDialog = false
+            },
+            onDismiss = { showLanguagePickerDialog = false }
+        )
+    }
+
     if (showExcludedAppsDialog) {
         ExcludedAppsDialog(
             strings = s,
@@ -219,10 +254,17 @@ fun RyanDpiMainScreen(
 private fun TopHeaderBar(
     settings: RyanDpiSettings,
     strings: AppStrings,
-    onToggleLanguage: () -> Unit,
+    onOpenRegionPicker: () -> Unit,
+    onOpenLanguagePicker: () -> Unit,
     onToggleTheme: () -> Unit
 ) {
     val c = LocalRyanDpiColors.current
+    val regionTag = when (settings.region) {
+        RegionPreset.TURKEY -> strings.regionTurkeyTag
+        RegionPreset.RUSSIA -> strings.regionRussiaTag
+        RegionPreset.BRAZIL -> strings.regionBrazilTag
+        RegionPreset.GLOBAL_UNIVERSAL -> strings.regionGlobalTag
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -236,22 +278,22 @@ private fun TopHeaderBar(
                 Text(
                     text = "RyanDPI",
                     color = c.textPrimary,
-                    fontSize = 20.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.ExtraBold,
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.width(7.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(c.accentRed.copy(alpha = 0.16f))
                         .border(1.dp, c.accentRed.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = "v${BuildConfig.VERSION_NAME}",
                         color = c.accentRed,
-                        fontSize = 10.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -259,31 +301,49 @@ private fun TopHeaderBar(
             Text(
                 text = strings.badgeAllApps,
                 color = c.textMuted,
-                fontSize = 10.sp,
+                fontSize = 9.5.sp,
                 fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.6.sp,
+                letterSpacing = 0.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        // Instant TR / EN toggle pill
+        // Country / Region Mode Pill
         Surface(
-            onClick = onToggleLanguage,
+            onClick = onOpenRegionPicker,
             shape = RoundedCornerShape(10.dp),
             color = c.bgCard,
             border = BorderStroke(1.dp, c.borderSubtle)
         ) {
             Text(
-                text = if (settings.language == "tr") "TR" else "EN",
-                color = c.accentRed,
-                fontSize = 12.sp,
+                text = regionTag,
+                color = c.textPrimary,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp)
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
             )
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+
+        // 1-tap 8-language picker pill (EN / TR / PT / RU / FA / ID / ZH / AR)
+        Surface(
+            onClick = onOpenLanguagePicker,
+            shape = RoundedCornerShape(10.dp),
+            color = c.bgCard,
+            border = BorderStroke(1.dp, c.borderSubtle)
+        ) {
+            Text(
+                text = settings.language.uppercase(Locale.ROOT),
+                color = c.accentRed,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(6.dp))
 
         // Dark / Light toggle
         Surface(
@@ -479,7 +539,7 @@ private fun HomeTab(
 
                 Text(
                     text = when (vpnState.status) {
-                        VpnStatus.CONNECTED -> strings.statusConnected
+                        VpnStatus.CONNECTED -> if (settings.region == RegionPreset.BRAZIL) strings.statusConnectedBrazil else strings.statusConnected
                         VpnStatus.CONNECTING -> strings.statusConnecting
                         VpnStatus.ERROR -> strings.statusError
                         VpnStatus.DISCONNECTED -> strings.statusDisconnected
@@ -498,10 +558,10 @@ private fun HomeTab(
 
                 Text(
                     text = when (vpnState.status) {
-                        VpnStatus.CONNECTED -> strings.subtitleConnected
+                        VpnStatus.CONNECTED -> if (settings.region == RegionPreset.BRAZIL) strings.subtitleConnectedBrazil else strings.subtitleConnected
                         VpnStatus.CONNECTING -> strings.subtitleConnecting
                         VpnStatus.ERROR -> vpnState.errorMessage ?: strings.subtitleDisconnected
-                        VpnStatus.DISCONNECTED -> strings.subtitleDisconnected
+                        VpnStatus.DISCONNECTED -> if (settings.region == RegionPreset.BRAZIL) strings.subtitleDisconnectedBrazil else strings.subtitleDisconnected
                     },
                     color = if (vpnState.status == VpnStatus.ERROR) c.danger else c.textSecondary,
                     fontSize = 12.5.sp,
@@ -509,26 +569,32 @@ private fun HomeTab(
                     textAlign = TextAlign.Center
                 )
 
-                // Active Engine & DNS badges
+                // Active Region & Engine badges
                 Spacer(modifier = Modifier.height(14.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     InfoPill(
-                        label = if (settings.dnsMode == DnsMode.ENCRYPTED_DOH) {
-                            "DoH: ${settings.dohProvider.plainIp}"
-                        } else {
-                            "Direct: ${settings.dohProvider.plainIp}"
+                        label = when (settings.region) {
+                            RegionPreset.BRAZIL -> if (settings.brazilTunnel == BrazilTunnelMode.CUSTOM_SOCKS5) "BR • Custom SOCKS5" else "BR • WARP MASQUE"
+                            RegionPreset.RUSSIA -> "RU • TSPU"
+                            RegionPreset.TURKEY -> "TR • DoH ${settings.dohProvider.plainIp}"
+                            RegionPreset.GLOBAL_UNIVERSAL -> "Global • DoH ${settings.dohProvider.plainIp}"
                         },
                         accent = if (isConnected) c.success else c.accentRed
                     )
                     InfoPill(
-                        label = when (settings.bypassProfile) {
-                            BypassProfile.AUTO_UNIVERSAL -> "Auto Universal"
-                            BypassProfile.CLASSIC_BYEDPI -> "Classic"
-                            BypassProfile.STRICT_ISP -> "Strict ISP"
-                            BypassProfile.CUSTOM -> "Custom"
+                        label = if (settings.region == RegionPreset.BRAZIL) {
+                            "Discord Only"
+                        } else {
+                            when (settings.bypassProfile) {
+                                BypassProfile.AUTO_UNIVERSAL -> "7-Stage Global"
+                                BypassProfile.RUSSIA_TSPU -> "Russia TSPU"
+                                BypassProfile.CLASSIC_BYEDPI -> "Classic"
+                                BypassProfile.STRICT_ISP -> "Strict ISP"
+                                BypassProfile.CUSTOM -> "Custom"
+                            }
                         },
                         accent = c.textSecondary
                     )
@@ -830,8 +896,137 @@ private fun SettingsTab(
             }
         }
 
-        // 1. DNS Poisoning Protection Card
+        // 0. Country / Region Mode Card
         SettingsCard(
+            title = strings.settingsRegionTitle,
+            subtitle = strings.regionPickerSub,
+            icon = Icons.Rounded.Public
+        ) {
+            RadioOptionRow(
+                selected = settings.region == RegionPreset.GLOBAL_UNIVERSAL,
+                title = strings.regionGlobalTitle,
+                description = strings.regionGlobalDesc,
+                onClick = { onUpdateSettings(settings.withRegionPreset(RegionPreset.GLOBAL_UNIVERSAL), true) }
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            RadioOptionRow(
+                selected = settings.region == RegionPreset.TURKEY,
+                title = strings.regionTurkeyTitle,
+                description = strings.regionTurkeyDesc,
+                onClick = { onUpdateSettings(settings.withRegionPreset(RegionPreset.TURKEY), true) }
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            RadioOptionRow(
+                selected = settings.region == RegionPreset.RUSSIA,
+                title = strings.regionRussiaTitle,
+                description = strings.regionRussiaDesc,
+                onClick = { onUpdateSettings(settings.withRegionPreset(RegionPreset.RUSSIA), true) }
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            RadioOptionRow(
+                selected = settings.region == RegionPreset.BRAZIL,
+                title = strings.regionBrazilTitle,
+                description = strings.regionBrazilDesc,
+                onClick = { onUpdateSettings(settings.withRegionPreset(RegionPreset.BRAZIL), true) }
+            )
+        }
+
+        // Brazil Discord-Only Split-Tunnel Card
+        AnimatedVisibility(visible = settings.region == RegionPreset.BRAZIL) {
+            var epDraft by remember(settings.customSocksEndpoint) { mutableStateOf(settings.customSocksEndpoint) }
+            var userDraft by remember(settings.customSocksUsername) { mutableStateOf(settings.customSocksUsername) }
+            var passDraft by remember(settings.customSocksPassword) { mutableStateOf(settings.customSocksPassword) }
+
+            SettingsCard(
+                title = strings.settingsBrazilCardTitle,
+                subtitle = strings.settingsBrazilNotice,
+                icon = Icons.Rounded.Security
+            ) {
+                RadioOptionRow(
+                    selected = settings.brazilTunnel == BrazilTunnelMode.BUILTIN_WARP_MASQUE,
+                    title = strings.brazilTunnelWarpTitle,
+                    description = strings.brazilTunnelWarpDesc,
+                    onClick = { onUpdateSettings(settings.copy(brazilTunnel = BrazilTunnelMode.BUILTIN_WARP_MASQUE), true) }
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                RadioOptionRow(
+                    selected = settings.brazilTunnel == BrazilTunnelMode.CUSTOM_SOCKS5,
+                    title = strings.brazilTunnelCustomTitle,
+                    description = strings.brazilTunnelCustomDesc,
+                    onClick = { onUpdateSettings(settings.copy(brazilTunnel = BrazilTunnelMode.CUSTOM_SOCKS5), true) }
+                )
+
+                AnimatedVisibility(visible = settings.brazilTunnel == BrazilTunnelMode.CUSTOM_SOCKS5) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 10.dp)) {
+                        OutlinedTextField(
+                            value = epDraft,
+                            onValueChange = {
+                                epDraft = it
+                                onUpdateSettings(settings.copy(customSocksEndpoint = it.trim()), true)
+                            },
+                            label = { Text(strings.brazilCustomEndpointLabel, fontSize = 12.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = c.accentRed,
+                                unfocusedBorderColor = c.borderSubtle,
+                                focusedContainerColor = c.bgInput,
+                                unfocusedContainerColor = c.bgInput,
+                                focusedTextColor = c.textPrimary,
+                                unfocusedTextColor = c.textPrimary
+                            )
+                        )
+                        OutlinedTextField(
+                            value = userDraft,
+                            onValueChange = {
+                                userDraft = it
+                                onUpdateSettings(settings.copy(customSocksUsername = it.trim()), true)
+                            },
+                            label = { Text(strings.brazilCustomUserLabel, fontSize = 12.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = c.accentRed,
+                                unfocusedBorderColor = c.borderSubtle,
+                                focusedContainerColor = c.bgInput,
+                                unfocusedContainerColor = c.bgInput,
+                                focusedTextColor = c.textPrimary,
+                                unfocusedTextColor = c.textPrimary
+                            )
+                        )
+                        OutlinedTextField(
+                            value = passDraft,
+                            onValueChange = {
+                                passDraft = it
+                                onUpdateSettings(settings.copy(customSocksPassword = it), true)
+                            },
+                            label = { Text(strings.brazilCustomPassLabel, fontSize = 12.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = c.accentRed,
+                                unfocusedBorderColor = c.borderSubtle,
+                                focusedContainerColor = c.bgInput,
+                                unfocusedContainerColor = c.bgInput,
+                                focusedTextColor = c.textPrimary,
+                                unfocusedTextColor = c.textPrimary
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                ToggleSettingRow(
+                    title = strings.brazilBrowsersTitle,
+                    description = strings.brazilBrowsersDesc,
+                    checked = settings.brazilIncludeBrowsers,
+                    onCheckedChange = { onUpdateSettings(settings.copy(brazilIncludeBrowsers = it), true) }
+                )
+            }
+        }
+
+        // 1. DNS Poisoning Protection Card (Global / Turkey / Russia)
+        if (settings.region != RegionPreset.BRAZIL) SettingsCard(
             title = strings.settingsDnsCardTitle,
             subtitle = strings.settingsDnsCardSub,
             icon = Icons.Rounded.Dns
@@ -898,8 +1093,8 @@ private fun SettingsTab(
             }
         }
 
-        // 2. DPI Bypass Strategy Card
-        SettingsCard(
+        // 2. DPI Bypass Strategy Card (Global / Turkey / Russia)
+        if (settings.region != RegionPreset.BRAZIL) SettingsCard(
             title = strings.settingsProfileTitle,
             subtitle = strings.settingsProfileSub,
             icon = Icons.Rounded.Tune
@@ -909,6 +1104,13 @@ private fun SettingsTab(
                 title = strings.profileAutoTitle,
                 description = strings.profileAutoDesc,
                 onClick = { onUpdateSettings(settings.copy(bypassProfile = BypassProfile.AUTO_UNIVERSAL), true) }
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            RadioOptionRow(
+                selected = settings.bypassProfile == BypassProfile.RUSSIA_TSPU,
+                title = strings.profileRussiaTitle,
+                description = strings.profileRussiaDesc,
+                onClick = { onUpdateSettings(settings.copy(bypassProfile = BypassProfile.RUSSIA_TSPU), true) }
             )
             Spacer(modifier = Modifier.height(6.dp))
             RadioOptionRow(
@@ -1078,7 +1280,7 @@ private fun ToolsTab(
                     ),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                 ) {
-                    Icon(Icons.Rounded.OpenInNew, contentDescription = null, tint = c.accentRed, modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, tint = c.accentRed, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(strings.btnOpenGithub, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
@@ -1203,6 +1405,177 @@ private fun ToolsTab(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun RegionPickerDialog(
+    strings: AppStrings,
+    selectedRegion: RegionPreset,
+    onSelectRegion: (RegionPreset) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val c = LocalRyanDpiColors.current
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 620.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = c.bgCard,
+            border = BorderStroke(1.2.dp, c.accentRed.copy(alpha = 0.7f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = strings.regionPickerTitle,
+                    color = c.textPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    text = strings.regionPickerSub,
+                    color = c.textSecondary,
+                    fontSize = 12.sp,
+                    lineHeight = 16.5.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                RadioOptionRow(
+                    selected = selectedRegion == RegionPreset.GLOBAL_UNIVERSAL,
+                    title = strings.regionGlobalTitle,
+                    description = strings.regionGlobalDesc,
+                    onClick = { onSelectRegion(RegionPreset.GLOBAL_UNIVERSAL) }
+                )
+                RadioOptionRow(
+                    selected = selectedRegion == RegionPreset.TURKEY,
+                    title = strings.regionTurkeyTitle,
+                    description = strings.regionTurkeyDesc,
+                    onClick = { onSelectRegion(RegionPreset.TURKEY) }
+                )
+                RadioOptionRow(
+                    selected = selectedRegion == RegionPreset.RUSSIA,
+                    title = strings.regionRussiaTitle,
+                    description = strings.regionRussiaDesc,
+                    onClick = { onSelectRegion(RegionPreset.RUSSIA) }
+                )
+                RadioOptionRow(
+                    selected = selectedRegion == RegionPreset.BRAZIL,
+                    title = strings.regionBrazilTitle,
+                    description = strings.regionBrazilDesc,
+                    onClick = { onSelectRegion(RegionPreset.BRAZIL) }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = c.accentRed),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(strings.btnDone, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguagePickerDialog(
+    strings: AppStrings,
+    selectedLanguage: String,
+    onSelectLanguage: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val c = LocalRyanDpiColors.current
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 580.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = c.bgCard,
+            border = BorderStroke(1.2.dp, c.accentRed.copy(alpha = 0.7f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = strings.languagePickerTitle,
+                    color = c.textPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                StringsRepository.allLanguages.forEach { lang ->
+                    val isSelected = lang.code == selectedLanguage
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) c.accentRed.copy(alpha = 0.14f) else c.bgCardAlt)
+                            .border(
+                                width = 1.dp,
+                                color = if (isSelected) c.accentRed else c.borderSubtle,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable { onSelectLanguage(lang.code) }
+                            .padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) c.accentRed else c.bgCanvas)
+                                .padding(horizontal = 7.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = lang.shortLabel,
+                                color = if (isSelected) Color.White else c.accentRed,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = lang.nativeName,
+                            color = c.textPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = c.accentRed,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, c.borderSubtle)
+                ) {
+                    Text(strings.btnDone, color = c.textPrimary, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 

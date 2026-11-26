@@ -16,6 +16,17 @@ namespace RyanDPI
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Headless Windows Service mode for Brazil WARP MASQUE split-tunnel engine (no GUI / no mutex)
+            if (e.Args.Length >= 1 && e.Args[0].Equals("--service-usque", StringComparison.OrdinalIgnoreCase))
+            {
+                var usqueExe = e.Args.Length >= 2 ? e.Args[1] : RyanDpiEngineService.EngineUsqueExe;
+                var usqueCfg = e.Args.Length >= 3 ? e.Args[2] : RyanDpiEngineService.EngineUsqueConfig;
+                int port = (e.Args.Length >= 4 && int.TryParse(e.Args[3], out var p)) ? p : RyanDpiSettings.UsqueSocksPort;
+                int rc = WindowsServiceHost.RunUsqueService(usqueExe, usqueCfg, port);
+                Environment.Exit(rc);
+                return;
+            }
+
             base.OnStartup(e);
 
             ParseCommandLineArgs(e.Args);

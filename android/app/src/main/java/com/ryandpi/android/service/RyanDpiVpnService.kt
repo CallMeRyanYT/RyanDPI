@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
@@ -16,12 +17,15 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.ryandpi.android.MainActivity
 import com.ryandpi.android.R
+import com.ryandpi.android.engine.BrazilTunnelMode
 import com.ryandpi.android.engine.CiadpiProcessManager
 import com.ryandpi.android.engine.DnsMode
 import com.ryandpi.android.engine.DohDnsResolver
 import com.ryandpi.android.engine.LogRepository
+import com.ryandpi.android.engine.RegionPreset
 import com.ryandpi.android.engine.RyanDpiSettings
 import com.ryandpi.android.engine.RyanDpiSocksGateway
+import com.ryandpi.android.engine.UsqueProcessManager
 import com.ryandpi.android.engine.VpnStateHolder
 import com.ryandpi.android.engine.VpnStatus
 import hev.htproxy.TProxyService
@@ -45,6 +49,20 @@ class RyanDpiVpnService : VpnService() {
         private const val NOTIFICATION_CHANNEL_ID = "ryandpi_vpn_tunnel"
         private const val NOTIFICATION_ID = 1080
 
+        private val DISCORD_PACKAGES = listOf(
+            "com.discord",
+            "com.discord.beta",
+            "com.discord.alpha"
+        )
+        private val BROWSER_PACKAGES = listOf(
+            "com.android.chrome",
+            "org.mozilla.firefox",
+            "com.brave.browser",
+            "com.microsoft.emmx",
+            "com.opera.browser",
+            "com.opera.gx"
+        )
+
         fun startService(context: Context) {
             val intent = Intent(context, RyanDpiVpnService::class.java).setAction(ACTION_START)
             ContextCompat.startForegroundService(context, intent)
@@ -65,6 +83,7 @@ class RyanDpiVpnService : VpnService() {
     private val lifecycleLock = Any()
 
     private var ciadpiManager: CiadpiProcessManager? = null
+    private var usqueManager: UsqueProcessManager? = null
     private var socksGateway: RyanDpiSocksGateway? = null
     private var dohResolver: DohDnsResolver? = null
     private var tunInterface: ParcelFileDescriptor? = null
@@ -78,9 +97,7 @@ class RyanDpiVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                serviceScope.launch {
-                    stopTunnel(stopSelfService = true)
-                }
+                serviceScope.launch { stopTunnel(stopSelfService = true) }
             }
             ACTION_RESTART -> {
                 promoteToForeground(connecting = true)
@@ -92,9 +109,7 @@ class RyanDpiVpnService : VpnService() {
             }
             ACTION_START, SERVICE_INTERFACE, null -> {
                 promoteToForeground(connecting = true)
-                serviceScope.launch {
-                    startTunnel()
-                }
+                serviceScope.launch { startTunnel() }
             }
         }
         return START_STICKY
@@ -102,9 +117,7 @@ class RyanDpiVpnService : VpnService() {
 
     override fun onRevoke() {
         LogRepository.warn("VPN permission revoked by system or another VPN app.")
-        serviceScope.launch {
-            stopTunnel(stopSelfService = true)
-        }
+        serviceScope.launch { stopTunnel(stopSelfService = true) }
         super.onRevoke()
     }
 
@@ -125,45 +138,81 @@ class RyanDpiVpnService : VpnService() {
             VpnStateHolder.setConnecting(settings.dnsMode, settings.bypassProfile)
             refreshQuickTile()
 
-            val ciadpiPort = settings.activeCiadpiPort()
-            val manager = CiadpiProcessManager(this)
-            val startResult = manager.start(settings, ciadpiPort)
-            if (startResult.isFailure) {
-                val msg = startResult.exceptionOrNull()?.message ?: "Failed to start local DPI engine."
-                VpnStateHolder.setError(msg)
-                refreshQuickTile()
-                stopSelf()
-                return
-            }
-            ciadpiManager = manager
+            var socksHost = "127.0.0.1"
+            var socksPort = RyanDpiSettings.GATEWAY_PORT
+            var socksUser: String? = null
+            var socksPass: String? = null
 
-            // Start local Encrypted DoH SOCKS5 Gateway on 127.0.0.1:1080 when Encrypted DoH mode is active
-            if (settings.dnsMode == DnsMode.ENCRYPTED_DOH) {
-                try {
-                    val resolver = DohDnsResolver(
-                        endpoints = settings.orderedDohEndpoints(),
-                        fallbackSocksPort = ciadpiPort
-                    )
-                    val gateway = RyanDpiSocksGateway(
-                        listenPort = RyanDpiSettings.GATEWAY_PORT,
-                        upstreamCiadpiPort = ciadpiPort,
-                        dohResolver = resolver
-                    )
-                    gateway.start()
-                    dohResolver = resolver
-                    socksGateway = gateway
-                } catch (e: Exception) {
-                    val err = "Encrypted DoH gateway failed to start: ${e.message}"
-                    LogRepository.error(err)
-                    stopTunnelLocked()
-                    VpnStateHolder.setError(err)
+            if (settings.region == RegionPreset.BRAZIL) {
+                if (settings.brazilTunnel == BrazilTunnelMode.CUSTOM_SOCKS5) {
+                    val parsed = RyanDpiSettings.parseSocksEndpoint(settings.customSocksEndpoint)
+                    if (parsed == null) {
+                        val err = "Invalid Custom SOCKS5 endpoint. Enter host:port in Settings (e.g. 1.2.3.4:1080)."
+                        LogRepository.error(err)
+                        VpnStateHolder.setError(err)
+                        refreshQuickTile()
+                        stopSelf()
+                        return
+                    }
+                    socksHost = parsed.host
+                    socksPort = parsed.port
+                    socksUser = settings.customSocksUsername.takeIf { it.isNotBlank() }
+                    socksPass = settings.customSocksPassword
+                } else {
+                    val uMgr = UsqueProcessManager(this)
+                    val res = uMgr.start(RyanDpiSettings.USQUE_SOCKS_PORT)
+                    if (res.isFailure) {
+                        val err = res.exceptionOrNull()?.message ?: "Failed to start Brazil WARP MASQUE engine."
+                        VpnStateHolder.setError(err)
+                        refreshQuickTile()
+                        stopSelf()
+                        return
+                    }
+                    usqueManager = uMgr
+                    socksHost = "127.0.0.1"
+                    socksPort = RyanDpiSettings.USQUE_SOCKS_PORT
+                }
+            } else {
+                // Global Universal / Turkey / Russia: local zero-speed-loss ciadpi DPI engine + optional Encrypted DoH
+                val ciadpiPort = settings.activeCiadpiPort()
+                val manager = CiadpiProcessManager(this)
+                val startResult = manager.start(settings, ciadpiPort)
+                if (startResult.isFailure) {
+                    val msg = startResult.exceptionOrNull()?.message ?: "Failed to start local DPI engine."
+                    VpnStateHolder.setError(msg)
                     refreshQuickTile()
                     stopSelf()
                     return
                 }
+                ciadpiManager = manager
+
+                if (settings.dnsMode == DnsMode.ENCRYPTED_DOH) {
+                    try {
+                        val resolver = DohDnsResolver(
+                            endpoints = settings.orderedDohEndpoints(),
+                            fallbackSocksPort = ciadpiPort
+                        )
+                        val gateway = RyanDpiSocksGateway(
+                            listenPort = RyanDpiSettings.GATEWAY_PORT,
+                            upstreamCiadpiPort = ciadpiPort,
+                            dohResolver = resolver
+                        )
+                        gateway.start()
+                        dohResolver = resolver
+                        socksGateway = gateway
+                    } catch (e: Exception) {
+                        val err = "Encrypted DoH gateway failed to start: ${e.message}"
+                        LogRepository.error(err)
+                        stopTunnelLocked()
+                        VpnStateHolder.setError(err)
+                        refreshQuickTile()
+                        stopSelf()
+                        return
+                    }
+                }
             }
 
-            // Establish local-only Android VpnService TUN interface (zero remote server, 100% on-device)
+            // Build Android local VpnService TUN
             val tun = try {
                 buildTunInterface(settings)
             } catch (e: Exception) {
@@ -187,10 +236,12 @@ class RyanDpiVpnService : VpnService() {
             }
             tunInterface = tun
 
-            // Write hev-socks5-tunnel YAML config and attach to TUN fd
             val configFile = File(cacheDir, "ryandpi-tproxy.yml")
             try {
-                configFile.writeText(buildTProxyConfigYaml(settings), Charsets.UTF_8)
+                configFile.writeText(
+                    buildTProxyConfigYaml(settings, socksHost, socksPort, socksUser, socksPass),
+                    Charsets.UTF_8
+                )
                 TProxyService.TProxyStartService(configFile.absolutePath, tun.fd)
             } catch (e: Throwable) {
                 val err = "Failed to start native TUN tunnel: ${e.message}"
@@ -206,12 +257,12 @@ class RyanDpiVpnService : VpnService() {
             promoteToForeground(connecting = false, settings = settings)
             refreshQuickTile()
 
-            val dnsLabel = if (settings.dnsMode == DnsMode.ENCRYPTED_DOH) {
-                "Encrypted DoH (${settings.dohProvider.displayName})"
+            val modeLabel = if (settings.region == RegionPreset.BRAZIL) {
+                "Brazil Discord-Only Split-Tunnel ($socksHost:$socksPort — Games 0ms Direct)"
             } else {
-                "Direct Native (${settings.dohProvider.plainIp})"
+                "${settings.region.name} DPI Bypass (${settings.bypassProfile.name})"
             }
-            LogRepository.info("RyanDPI active! All apps unlocked at full speed | DNS: $dnsLabel | Profile: ${settings.bypassProfile.name}")
+            LogRepository.info("RyanDPI active! Mode: $modeLabel")
 
             startStatsLoop()
         }
@@ -232,13 +283,15 @@ class RyanDpiVpnService : VpnService() {
             .addAddress(RyanDpiSettings.VIRTUAL_TUN_IPV4, 32)
             .addRoute("0.0.0.0", 0)
 
-        if (settings.ipv6Enabled) {
+        if (settings.ipv6Enabled && settings.region != RegionPreset.BRAZIL) {
             builder.addAddress(RyanDpiSettings.VIRTUAL_TUN_IPV6, 128)
             builder.addRoute("::", 0)
         }
 
-        if (settings.dnsMode == DnsMode.ENCRYPTED_DOH) {
-            // Virtual DNS IP routed into TUN -> intercepted by RyanDpiSocksGateway -> Encrypted DoH
+        if (settings.region == RegionPreset.BRAZIL) {
+            builder.addDnsServer("1.1.1.1")
+            builder.addDnsServer("8.8.8.8")
+        } else if (settings.dnsMode == DnsMode.ENCRYPTED_DOH) {
             builder.addDnsServer(RyanDpiSettings.VIRTUAL_DNS_IPV4)
         } else {
             builder.addDnsServer(settings.dohProvider.plainIp)
@@ -250,25 +303,70 @@ class RyanDpiVpnService : VpnService() {
             builder.setMetered(false)
         }
 
-        // MANDATORY: Exclude RyanDPI itself so ciadpi & DoH sockets never loop back into the TUN!
-        runCatching { builder.addDisallowedApplication(packageName) }
-
-        // Apply user-chosen excluded apps (Split Tunnel)
-        for (pkg in settings.excludedPackages) {
-            if (pkg.isNotBlank() && pkg != packageName) {
-                runCatching { builder.addDisallowedApplication(pkg) }
+        if (settings.region == RegionPreset.BRAZIL) {
+            // Brazil ANPD Mode: ONLY route Discord (+ optional browsers) through the Geo-Unblock tunnel!
+            // 100% of mobile games and other apps stay completely direct with 0ms added lag!
+            val targets = mutableListOf<String>()
+            targets.addAll(DISCORD_PACKAGES)
+            if (settings.brazilIncludeBrowsers) {
+                targets.addAll(BROWSER_PACKAGES)
+            }
+            var addedAny = false
+            for (pkg in targets) {
+                if (isPackageInstalled(pkg)) {
+                    runCatching {
+                        builder.addAllowedApplication(pkg)
+                        addedAny = true
+                    }
+                }
+            }
+            if (!addedAny) {
+                // If Discord isn't installed yet, fall back to excluding RyanDPI so tunnel still establishes cleanly
+                LogRepository.warn("Discord app not detected yet; falling back to standard tunnel exclusion.")
+                runCatching { builder.addDisallowedApplication(packageName) }
+            }
+        } else {
+            // MANDATORY: Exclude RyanDPI itself so ciadpi & DoH sockets never loop back into the TUN!
+            runCatching { builder.addDisallowedApplication(packageName) }
+            for (pkg in settings.excludedPackages) {
+                if (pkg.isNotBlank() && pkg != packageName) {
+                    runCatching { builder.addDisallowedApplication(pkg) }
+                }
             }
         }
 
         return builder.establish()
     }
 
-    private fun buildTProxyConfigYaml(settings: RyanDpiSettings): String {
-        val ipv6Line = if (settings.ipv6Enabled) {
+    private fun isPackageInstalled(pkg: String): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(pkg, 0)
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun buildTProxyConfigYaml(
+        settings: RyanDpiSettings,
+        socksHost: String,
+        socksPort: Int,
+        socksUser: String?,
+        socksPass: String?
+    ): String {
+        val ipv6Line = if (settings.ipv6Enabled && settings.region != RegionPreset.BRAZIL) {
             "  ipv6: '${RyanDpiSettings.VIRTUAL_TUN_IPV6}'\n"
         } else {
             ""
         }
+        val escapedUser = socksUser?.replace("'", "''")
+        val escapedPass = socksPass?.replace("'", "''")
+
         return buildString {
             append("tunnel:\n")
             append("  name: tun0\n")
@@ -277,9 +375,13 @@ class RyanDpiVpnService : VpnService() {
             append("  ipv4: ${RyanDpiSettings.VIRTUAL_TUN_IPV4}\n")
             append(ipv6Line)
             append("socks5:\n")
-            append("  port: ${RyanDpiSettings.GATEWAY_PORT}\n")
-            append("  address: 127.0.0.1\n")
+            append("  port: $socksPort\n")
+            append("  address: '$socksHost'\n")
             append("  udp: 'udp'\n")
+            if (!escapedUser.isNullOrBlank()) {
+                append("  username: '$escapedUser'\n")
+                append("  password: '${escapedPass ?: ""}'\n")
+            }
             append("misc:\n")
             append("  task-stack-size: 81920\n")
             append("  tcp-buffer-size: 65536\n")
@@ -297,7 +399,6 @@ class RyanDpiVpnService : VpnService() {
         statsJob = serviceScope.launch {
             while (isActive && VpnStateHolder.state.value.status == VpnStatus.CONNECTED) {
                 delay(1000)
-                // Watchdog: if ciadpi ever unexpectedly died, log it clearly
                 val mgr = ciadpiManager
                 if (mgr != null && !mgr.isRunning()) {
                     LogRepository.warn("ciadpi process stopped unexpectedly; attempting automatic recovery...")
@@ -309,9 +410,16 @@ class RyanDpiVpnService : VpnService() {
                         break
                     }
                 }
+                val uMgr = usqueManager
+                if (uMgr != null && !uMgr.isRunning()) {
+                    LogRepository.warn("WARP MASQUE engine stopped; attempting automatic recovery...")
+                    if (uMgr.start(RyanDpiSettings.USQUE_SOCKS_PORT).isFailure) {
+                        stopTunnel(stopSelfService = true)
+                        break
+                    }
+                }
 
                 val stats = runCatching { TProxyService.TProxyGetStats() }.getOrNull()
-                // hev-socks5-tunnel returns [tx_packets, tx_bytes, rx_packets, rx_bytes]
                 val txBytes = if (stats != null && stats.size >= 4) stats[1] else 0L
                 val rxBytes = if (stats != null && stats.size >= 4) stats[3] else 0L
                 val dnsQ = dohResolver?.getTotalQueries() ?: 0L
@@ -358,6 +466,9 @@ class RyanDpiVpnService : VpnService() {
 
         runCatching { ciadpiManager?.stop() }
         ciadpiManager = null
+
+        runCatching { usqueManager?.stop() }
+        usqueManager = null
     }
 
     private fun ensureNotificationChannel() {
@@ -398,22 +509,34 @@ class RyanDpiVpnService : VpnService() {
     }
 
     private fun buildNotification(connecting: Boolean, settings: RyanDpiSettings?): Notification {
-        val lang = (settings ?: RyanDpiSettings.load(this)).language
-        val isTr = lang == "tr"
+        val cfg = settings ?: RyanDpiSettings.load(this)
+        val lang = cfg.language
+        val isBrazil = cfg.region == RegionPreset.BRAZIL
 
         val title = when {
-            connecting && isTr -> "RyanDPI Bağlanıyor..."
-            connecting -> "RyanDPI Connecting..."
-            isTr -> "RyanDPI Aktif — Tüm Uygulamalar Açık"
-            else -> "RyanDPI Active — All Apps Unlocked"
+            connecting -> when (lang) {
+                "tr" -> "RyanDPI Bağlanıyor..."
+                "pt" -> "RyanDPI Conectando..."
+                "ru" -> "RyanDPI Подключение..."
+                else -> "RyanDPI Connecting..."
+            }
+            isBrazil -> when (lang) {
+                "pt" -> "RyanDPI Brasil — Só Discord (0 ms nos Jogos)"
+                "tr" -> "RyanDPI Brezilya — Sadece Discord"
+                else -> "RyanDPI Brazil — Discord Only (0ms Game Lag)"
+            }
+            else -> when (lang) {
+                "tr" -> "RyanDPI Aktif — Tüm Uygulamalar Açık"
+                "pt" -> "RyanDPI Ativo — Todos Apps Liberados"
+                "ru" -> "RyanDPI Активен — Все приложения открыты"
+                else -> "RyanDPI Active — All Apps Unlocked"
+            }
         }
 
         val text = when {
-            connecting && isTr -> "Yerel DPI motoru başlatılıyor..."
-            connecting -> "Starting local zero-speed-loss DPI engine..."
-            settings?.dnsMode == DnsMode.ENCRYPTED_DOH && isTr -> "Şifreli DoH DNS • Tam İnternet Hızı"
-            settings?.dnsMode == DnsMode.ENCRYPTED_DOH -> "Encrypted DoH DNS • Native Full Speed"
-            isTr -> "Doğrudan Yerel Motor • Tam İnternet Hızı"
+            connecting -> "Starting local zero-lag engine..."
+            isBrazil -> "Discord Screen Share Split-Tunnel • Games 100% Direct"
+            cfg.dnsMode == DnsMode.ENCRYPTED_DOH -> "Encrypted DoH DNS • Native Full Speed"
             else -> "Direct Native Engine • Native Full Speed"
         }
 
@@ -431,7 +554,12 @@ class RyanDpiVpnService : VpnService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val disconnectLabel = if (isTr) "Bağlantıyı Kes" else "Disconnect"
+        val disconnectLabel = when (lang) {
+            "tr" -> "Bağlantıyı Kes"
+            "pt" -> "Desconectar"
+            "ru" -> "Отключить"
+            else -> "Disconnect"
+        }
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_ryandpi)

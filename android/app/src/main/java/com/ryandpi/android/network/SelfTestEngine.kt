@@ -1,6 +1,8 @@
 package com.ryandpi.android.network
 
+import com.ryandpi.android.engine.BrazilTunnelMode
 import com.ryandpi.android.engine.DohDnsResolver
+import com.ryandpi.android.engine.RegionPreset
 import com.ryandpi.android.engine.RyanDpiSettings
 import com.ryandpi.android.engine.VpnStateHolder
 import com.ryandpi.android.engine.VpnStatus
@@ -18,7 +20,6 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.Socket
-import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 data class SelfTestItem(
@@ -33,6 +34,52 @@ object SelfTestEngine {
 
     suspend fun runAll(settings: RyanDpiSettings, s: AppStrings): List<SelfTestItem> = coroutineScope {
         val isConnected = VpnStateHolder.state.value.status == VpnStatus.CONNECTED
+
+        val directBaselineClient = OkHttpClient.Builder()
+            .protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
+            .connectionPool(ConnectionPool(2, 30, TimeUnit.SECONDS))
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .build()
+
+        // Brazil Mode: test Discord Split-Tunnel endpoint + Exit Country IP + Discord API + Direct Game Baseline
+        if (settings.region == RegionPreset.BRAZIL) {
+            val customEp = if (settings.brazilTunnel == BrazilTunnelMode.CUSTOM_SOCKS5) {
+                RyanDpiSettings.parseSocksEndpoint(settings.customSocksEndpoint)
+            } else null
+            val proxyHost = customEp?.host ?: "127.0.0.1"
+            val proxyPort = customEp?.port ?: RyanDpiSettings.USQUE_SOCKS_PORT
+
+            val brClient = OkHttpClient.Builder()
+                .apply {
+                    if (isConnected) {
+                        proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress(proxyHost, proxyPort)))
+                    }
+                }
+                .protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
+                .connectionPool(ConnectionPool(4, 30, TimeUnit.SECONDS))
+                .connectTimeout(6, TimeUnit.SECONDS)
+                .readTimeout(8, TimeUnit.SECONDS)
+                .build()
+
+            try {
+                val checks = listOf(
+                    async(Dispatchers.IO) { checkSocksPort(proxyHost, proxyPort, s, isBrazil = true) },
+                    async(Dispatchers.IO) { checkBrazilExitCountry(brClient, s) },
+                    async(Dispatchers.IO) { checkEndpoint(brClient, "discord", "Discord API", "https://discord.com/api/v10/gateway", s) },
+                    async(Dispatchers.IO) { checkEndpoint(brClient, "discord_cdn", "Discord Media CDN", "https://cdn.discordapp.com/", s) },
+                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testDirectGameBaseline, "https://1.1.1.1/cdn-cgi/trace", s) }
+                )
+                return@coroutineScope checks.awaitAll()
+            } finally {
+                runCatching { brClient.dispatcher.executorService.shutdown() }
+                runCatching { brClient.connectionPool.evictAll() }
+                runCatching { directBaselineClient.dispatcher.executorService.shutdown() }
+                runCatching { directBaselineClient.connectionPool.evictAll() }
+            }
+        }
+
+        // Global / Turkey / Russia DPI Bypass Mode
         val dohResolver = DohDnsResolver(
             endpoints = settings.orderedDohEndpoints(),
             fallbackSocksPort = if (isConnected) settings.activeCiadpiPort() else null
@@ -61,24 +108,30 @@ object SelfTestEngine {
             .followRedirects(true)
             .build()
 
-        val directBaselineClient = OkHttpClient.Builder()
-            .protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
-            .connectionPool(ConnectionPool(2, 30, TimeUnit.SECONDS))
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .build()
-
         try {
-            val checks = listOf(
-                async(Dispatchers.IO) { checkLocalEngine(s) },
-                async(Dispatchers.IO) { checkEncryptedDns(dohResolver, s) },
-                async(Dispatchers.IO) { checkEndpoint(testClient, "discord", "Discord", "https://discord.com/api/v10/gateway", s) },
-                async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_app", s.testRobloxApp, "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", s) },
-                async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_studio", s.testRobloxStudio, "https://apis.roblox.com/health", s) },
-                async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_web", s.testRobloxWeb, "https://www.roblox.com/", s) },
-                async(Dispatchers.IO) { checkEndpoint(testClient, "wattpad", "Wattpad", "https://www.wattpad.com/", s) },
-                async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testBaseline, "https://1.1.1.1/cdn-cgi/trace", s) }
-            )
+            val checks = if (settings.region == RegionPreset.RUSSIA) {
+                listOf(
+                    async(Dispatchers.IO) { checkSocksPort("127.0.0.1", RyanDpiSettings.GATEWAY_PORT, s, isBrazil = false) },
+                    async(Dispatchers.IO) { checkEncryptedDns(dohResolver, s, isRussia = true) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "discord", "Discord", "https://discord.com/api/v10/gateway", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "youtube", "YouTube", "https://www.youtube.com/", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "instagram", "Instagram", "https://www.instagram.com/", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_app", s.testRobloxApp, "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_web", s.testRobloxWeb, "https://www.roblox.com/", s) },
+                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testBaseline, "https://1.1.1.1/cdn-cgi/trace", s) }
+                )
+            } else {
+                listOf(
+                    async(Dispatchers.IO) { checkSocksPort("127.0.0.1", RyanDpiSettings.GATEWAY_PORT, s, isBrazil = false) },
+                    async(Dispatchers.IO) { checkEncryptedDns(dohResolver, s, isRussia = false) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "discord", "Discord", "https://discord.com/api/v10/gateway", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_app", s.testRobloxApp, "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_studio", s.testRobloxStudio, "https://apis.roblox.com/health", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_web", s.testRobloxWeb, "https://www.roblox.com/", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "wattpad", "Wattpad", "https://www.wattpad.com/", s) },
+                    async(Dispatchers.IO) { checkEndpoint(directBaselineClient, "baseline", s.testBaseline, "https://1.1.1.1/cdn-cgi/trace", s) }
+                )
+            }
             checks.awaitAll()
         } finally {
             runCatching { testClient.dispatcher.executorService.shutdown() }
@@ -89,20 +142,20 @@ object SelfTestEngine {
         }
     }
 
-    private fun checkLocalEngine(s: AppStrings): SelfTestItem {
+    private fun checkSocksPort(host: String, port: Int, s: AppStrings, isBrazil: Boolean): SelfTestItem {
         val start = System.nanoTime()
         return try {
             Socket().use { sock ->
-                sock.connect(InetSocketAddress("127.0.0.1", RyanDpiSettings.GATEWAY_PORT), 1500)
-                sock.soTimeout = 1500
-                // Verify real SOCKS5 greeting response (0x05 0x00)
+                sock.connect(InetSocketAddress(host, port), 1800)
+                sock.soTimeout = 1800
                 sock.getOutputStream().write(byteArrayOf(0x05, 0x01, 0x00))
                 sock.getOutputStream().flush()
                 val resp = ByteArray(2)
                 val n = sock.getInputStream().read(resp)
                 val ms = ((System.nanoTime() - start) / 1_000_000L).coerceAtLeast(1L)
-                if (n == 2 && resp[0] == 0x05.toByte() && resp[1] == 0x00.toByte()) {
-                    SelfTestItem("engine", s.testLocalEngine, true, s.testEngineActive, ms)
+                if (n == 2 && resp[0] == 0x05.toByte()) {
+                    val activeMsg = if (isBrazil) s.testBrazilEngineActive else s.testEngineActive
+                    SelfTestItem("engine", s.testLocalEngine, true, activeMsg, ms)
                 } else {
                     SelfTestItem("engine", s.testLocalEngine, false, s.testEngineInactive, ms)
                 }
@@ -113,14 +166,43 @@ object SelfTestEngine {
         }
     }
 
-    private fun checkEncryptedDns(resolver: DohDnsResolver, s: AppStrings): SelfTestItem {
+    private fun checkBrazilExitCountry(client: OkHttpClient, s: AppStrings): SelfTestItem {
         val start = System.nanoTime()
         return try {
-            val discordIps = queryAAddresses(resolver, "discord.com")
-            val robloxIps = queryAAddresses(resolver, "www.roblox.com")
+            val req = Request.Builder()
+                .url("https://1.1.1.1/cdn-cgi/trace")
+                .header("User-Agent", "RyanDPI-Android/2.5")
+                .build()
+            var loc = "??"
+            var ip = ""
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                for (line in body.lines()) {
+                    if (line.startsWith("loc=")) loc = line.removePrefix("loc=").trim()
+                    else if (line.startsWith("ip=")) ip = line.removePrefix("ip=").trim()
+                }
+            }
             val ms = ((System.nanoTime() - start) / 1_000_000L).coerceAtLeast(1L)
-            val valid = discordIps.isNotEmpty() && robloxIps.isNotEmpty() &&
-                discordIps.none { isLikelyPoisonedIp(it.hostAddress ?: "") }
+            val detail = if (!loc.equals("BR", ignoreCase = true)) {
+                "${s.testBrazilExitNonBr}: $loc ($ip)"
+            } else {
+                "${s.testBrazilExitStillBr} ($ip)"
+            }
+            SelfTestItem("br_exit", s.testBrazilExitTitle, true, detail, ms)
+        } catch (e: Exception) {
+            val ms = ((System.nanoTime() - start) / 1_000_000L).coerceAtLeast(1L)
+            SelfTestItem("br_exit", s.testBrazilExitTitle, false, "${s.testBlocked} (${(e.message ?: "err").take(40)})", ms)
+        }
+    }
+
+    private fun checkEncryptedDns(resolver: DohDnsResolver, s: AppStrings, isRussia: Boolean): SelfTestItem {
+        val start = System.nanoTime()
+        return try {
+            val firstIps = queryAAddresses(resolver, "discord.com")
+            val secondIps = queryAAddresses(resolver, if (isRussia) "www.youtube.com" else "www.roblox.com")
+            val ms = ((System.nanoTime() - start) / 1_000_000L).coerceAtLeast(1L)
+            val valid = firstIps.isNotEmpty() && secondIps.isNotEmpty() &&
+                firstIps.none { isLikelyPoisonedIp(it.hostAddress ?: "") }
             if (valid) {
                 SelfTestItem("dns", s.testDnsResolution, true, s.testDnsClean, ms)
             } else {
@@ -143,10 +225,9 @@ object SelfTestEngine {
             val req = Request.Builder()
                 .url(url)
                 .head()
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) RyanDPI/2.4")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) RyanDPI/2.5")
                 .build()
 
-            // Request 1: establish TLS + DPI desync handshake
             var code = 0
             val coldStart = System.nanoTime()
             client.newCall(req).execute().use { resp ->
@@ -155,7 +236,6 @@ object SelfTestEngine {
             }
             val coldMs = ((System.nanoTime() - coldStart) / 1_000_000L).coerceAtLeast(1L)
 
-            // Request 2: warm keep-alive HTTP/2 RTT for accurate live ping
             val warmStart = System.nanoTime()
             var warmMs = coldMs
             runCatching {
@@ -187,13 +267,12 @@ object SelfTestEngine {
         val labels = domain.trim('.').split('.').filter { it.isNotEmpty() }
         val qnameLen = labels.sumOf { 1 + it.length } + 1
         val buf = ByteArray(12 + qnameLen + 4)
-        // Random-ish txid
         val tx = (System.nanoTime() and 0xFFFF).toInt()
         buf[0] = ((tx ushr 8) and 0xFF).toByte()
         buf[1] = (tx and 0xFF).toByte()
-        buf[2] = 0x01 // RD=1
+        buf[2] = 0x01
         buf[3] = 0x00
-        buf[5] = 0x01 // QDCOUNT=1
+        buf[5] = 0x01
 
         var pos = 12
         for (label in labels) {
@@ -204,9 +283,9 @@ object SelfTestEngine {
         }
         buf[pos++] = 0x00
         buf[pos++] = 0x00
-        buf[pos++] = 0x01 // TYPE A
+        buf[pos++] = 0x01
         buf[pos++] = 0x00
-        buf[pos] = 0x01   // CLASS IN
+        buf[pos] = 0x01
         return buf
     }
 

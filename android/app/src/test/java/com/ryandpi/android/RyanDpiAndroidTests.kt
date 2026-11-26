@@ -1,9 +1,11 @@
 package com.ryandpi.android
 
+import com.ryandpi.android.engine.BrazilTunnelMode
 import com.ryandpi.android.engine.BypassProfile
 import com.ryandpi.android.engine.DnsMode
 import com.ryandpi.android.engine.DohDnsResolver
 import com.ryandpi.android.engine.DohProvider
+import com.ryandpi.android.engine.RegionPreset
 import com.ryandpi.android.engine.RyanDpiSettings
 import com.ryandpi.android.engine.RyanDpiSocksGateway
 import com.ryandpi.android.network.SelfTestEngine
@@ -248,22 +250,22 @@ class RyanDpiAndroidTests {
     fun updateCheckerSelectsApkAndValidatesSecurity() {
         val sampleJson = """
         {
-          "tag_name": "v2.5.0",
-          "name": "RyanDPI v2.5.0",
-          "html_url": "https://github.com/CallMeRyanYT/RyanDPI/releases/tag/v2.5.0",
+          "tag_name": "v3.0.0",
+          "name": "RyanDPI v3.0.0 — Unbound",
+          "html_url": "https://github.com/CallMeRyanYT/RyanDPI/releases/tag/v3.0.0",
           "draft": false,
           "prerelease": false,
           "assets": [
             {
-              "name": "RyanDPI-Setup-Windows-2.5.0.exe",
+              "name": "RyanDPI-Setup-Windows-3.0.0.exe",
               "size": 18000000,
-              "browser_download_url": "https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.5.0/RyanDPI-Setup-Windows-2.5.0.exe"
+              "browser_download_url": "https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.0.0/RyanDPI-Setup-Windows-3.0.0.exe"
             },
             {
-              "name": "RyanDPI-Android-2.5.0.apk",
+              "name": "RyanDPI-Android-3.0.0.apk",
               "size": 9500000,
               "digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-              "browser_download_url": "https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.5.0/RyanDPI-Android-2.5.0.apk"
+              "browser_download_url": "https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.0.0/RyanDPI-Android-3.0.0.apk"
             }
           ]
         }
@@ -272,14 +274,14 @@ class RyanDpiAndroidTests {
         val result = UpdateChecker.parseReleaseJson(sampleJson, "2.4.0")
         assertTrue(result.success)
         assertTrue(result.updateAvailable)
-        assertEquals("2.5.0", result.latestVersion)
-        assertEquals("RyanDPI-Android-2.5.0.apk", result.assetName)
+        assertEquals("3.0.0", result.latestVersion)
+        assertEquals("RyanDPI-Android-3.0.0.apk", result.assetName)
         assertEquals(
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             result.expectedSha256
         )
 
-        val same = UpdateChecker.parseReleaseJson(sampleJson, "2.5.0")
+        val same = UpdateChecker.parseReleaseJson(sampleJson, "3.0.0")
         assertTrue(same.success)
         assertFalse(same.updateAvailable)
 
@@ -291,13 +293,36 @@ class RyanDpiAndroidTests {
     }
 
     @Test
-    fun englishAndTurkishStringsAreComplete() {
-        val en = StringsRepository.forLanguage("en")
-        val tr = StringsRepository.forLanguage("tr")
-        assertTrue(en.btnConnect.isNotBlank())
-        assertTrue(tr.btnConnect.isNotBlank())
-        assertTrue(en.selfTestTitle != tr.selfTestTitle)
+    fun regionPresetsAndAllEightLanguagesWorkCleanly() {
+        assertEquals(8, RyanDpiSettings.SUPPORTED_LANGUAGES.size)
+        assertEquals(8, StringsRepository.allLanguages.size)
+        for (lang in RyanDpiSettings.SUPPORTED_LANGUAGES) {
+            val s = StringsRepository.forLanguage(lang)
+            assertTrue("btnConnect blank for $lang", s.btnConnect.isNotBlank())
+            assertTrue("languagePickerTitle blank for $lang", s.languagePickerTitle.isNotBlank())
+            assertTrue("regionPickerTitle blank for $lang", s.regionPickerTitle.isNotBlank())
+        }
         assertEquals("tr", RyanDpiSettings.normalizeLanguage("tr-TR"))
+        assertEquals("pt", RyanDpiSettings.normalizeLanguage("pt-BR"))
+        assertEquals("ru", RyanDpiSettings.normalizeLanguage("ru-RU"))
+        assertEquals("fa", RyanDpiSettings.normalizeLanguage("fa-IR"))
+        assertEquals("id", RyanDpiSettings.normalizeLanguage("id-ID"))
+        assertEquals("zh", RyanDpiSettings.normalizeLanguage("zh-CN"))
+        assertEquals("ar", RyanDpiSettings.normalizeLanguage("ar-EG"))
         assertEquals("en", RyanDpiSettings.normalizeLanguage("en-US"))
+
+        val ruPreset = RyanDpiSettings().withRegionPreset(RegionPreset.RUSSIA)
+        assertEquals(BypassProfile.RUSSIA_TSPU, ruPreset.bypassProfile)
+        assertTrue(ruPreset.buildCiadpiArgList().contains("--fake-sni"))
+
+        val brPreset = RyanDpiSettings().withRegionPreset(RegionPreset.BRAZIL)
+        assertEquals(RegionPreset.BRAZIL, brPreset.region)
+        assertEquals(BrazilTunnelMode.BUILTIN_WARP_MASQUE, brPreset.brazilTunnel)
+
+        val ep = RyanDpiSettings.parseSocksEndpoint("socks5://1.2.3.4:1080")
+        assertNotNull(ep)
+        assertEquals("1.2.3.4", ep!!.host)
+        assertEquals(1080, ep.port)
+        assertNull(RyanDpiSettings.parseSocksEndpoint("bad-endpoint"))
     }
 }

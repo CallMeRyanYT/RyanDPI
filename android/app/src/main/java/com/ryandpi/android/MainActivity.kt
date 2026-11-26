@@ -158,9 +158,8 @@ class MainActivity : ComponentActivity() {
                             settingsDirtyWhileConnected = true
                         }
                     },
-                    onToggleLanguage = {
-                        val nextLang = if (settings.language == "tr") "en" else "tr"
-                        val updated = settings.copy(language = nextLang)
+                    onSelectLanguage = { chosenCode ->
+                        val updated = settings.copy(language = RyanDpiSettings.normalizeLanguage(chosenCode))
                         settings = updated
                         RyanDpiSettings.save(this, updated)
                     },

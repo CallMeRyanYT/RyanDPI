@@ -1,106 +1,64 @@
-# RyanDPI
+# RyanDPI v3.0.0 — Unbound
 
-[English](README.md) | **Türkçe**
+[English](README.md) | **Türkçe** | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md) | [فارسی](README.fa.md) | [Bahasa Indonesia](README.id.md) | [简体中文](README.zh.md) | [العربية](README.ar.md)
 
-**RyanDPI**, Türkiye'de engelli **tüm uygulama ve web sitelerini** — **Discord**, **Roblox**, **Roblox Studio**, **Wattpad**, tüm tarayıcılar ve diğer tüm uygulamalar dahil — **internet hızını veya oyun pingini etkilemeden** tek tıkla açmak için tasarlanmış modern, yüksek hızlı bir **Windows & Android** DPI aşım aracıdır (anında **Türkçe / İngilizce** dil değiştirme destekli).
+**RyanDPI — Unbound**, **Türkiye, Rusya, Brezilya ve tüm dünyadaki** engelli uygulama ve siteleri — **Discord, Discord Ekran Paylaşımı, Roblox, Roblox Studio, YouTube, Instagram, Wattpad** dahil — **internet hızını düşürmeden ve oyun pingini artırmadan** tek tıkla açan modern **Windows & Android** aracıdır.
 
-RyanDPI karmaşık çoklu araç kurulumlarını hem bilgisayarda hem telefonda rootsuz, kutudan çıktığı gibi sorunsuz çalışan tek bir yerel motorla değiştirir.
-
----
-
-## Neden RyanDPI?
-
-- **Windows ve Android Desteği:** Windows 10/11 masaüstü uygulaması VE rootsuz **Android APK** (Android 10–16, Evrensel `arm64-v8a` / `armeabi-v7a` / `x86_64` / `x86`), Hızlı Ayarlar kutucuğu, uygulama hariç tutma (Split Tunnel) ve dahili Şifreli DoH DNS ile gelir.
-- **Her Şeyi Otomatik Açar (Beyaz Liste Gerekmez):** Yalnızca belirli uygulamaları listeleyen kurulumların aksine, RyanDPI sistem genelindeki **tüm uygulamaları** şeffaf biçimde açar.
-- **Sıfır Hız Kaybı — Doğal İSS Hızları:** RyanDPI bir **uzak VPN değildir**. Trafiğin hiçbir üçüncü parti sunucudan geçmez. Doğrudan kendi Wi-Fi, Ethernet veya 4G/5G hattın üzerinden yalnızca ilk el sıkışma paketine gecikmesiz TLS kayıt bölme (`--tlsrec 1+s`) uygular; tüm indirme, yayın ve yüklemeler tam hat hızında aktarılır.
-- **En Düşük Ping ve 0 ms Doğal Oyun Pingi:** Windows'ta varsayılan olarak yalnızca **TCP** trafiğini işlerken **UDP** oyun trafiğini doğrudan bırakır ve LAN/localhost'u otomatik atlar.
-- **Dahili Şifreli DNS (Türk İSS UDP/53 Engelini Aşar):** Türk İSS DNS zehirlenmesini ve UDP/53 engelini otomatik ortadan kaldırır — Windows'ta yerel **DNSCrypt-Proxy**, Android'de ise telefon ayarı değiştirmeden çalışan dahili **HTTP/2 Şifreli DoH Ağ Geçidi** (`1.1.1.1` / `8.8.8.8` / `9.9.9.9`, LRU önbellekli ve otomatik yedekli) kullanır.
-- **6 Aşamalı Uyarlanabilir Aşım Stratejisi:** Türk Telekom, Superonline, Vodafone, Turkcell, Türksat Kablonet ve TurkNet üzerinde 24 saatlik IP önbellekleme ile otomatik uyum sağlar.
-- **Dahili Otomatik Güncelleyici:** Hem Windows hem Android sürümü açılışta GitHub Releases üzerinden yeni sürümleri SHA-256 doğrulamasıyla denetler ve tek tıkla günceller.
-- **Neon Kırmızı & Siyah Arayüz + Tek Tıkla Türkçe / İngilizce Değiştirme:** Üst başlıktan tek tıkla tüm uygulamayı Türkçe veya İngilizce yapabilir, Koyu/Açık tema seçebilir ve dahili **8 adımlı Erişim ve Hız Testi** ile Discord, Roblox Uygulaması, Roblox Studio, Wattpad ve canlı pingi doğrulayabilirsin.
+**v3.0.0 — Unbound** ile ilk açılış **Ülke/Bölge Seçici**, **7 Aşamalı Evrensel Küresel DPI Motoru**, özel **Türkiye (BTK)**, **Rusya (TSPU)** ve **Brezilya (0 ms Oyun Pingli Discord Bölünmüş Tünel)** modları ve **8 dahili dil** tek uygulamada birleşiyor!
 
 ---
 
-## İndirme ve Hızlı Başlangıç
+## İndirme ve Hızlı Başlangıç (`v3.0.0 — Unbound`)
 
-[![Windows Kurulumunu İndir](https://img.shields.io/badge/İndir-Windows%20Kurulum%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.4.0/RyanDPI-Setup-Windows-2.4.0.exe)
-[![Taşınabilir ZIP İndir](https://img.shields.io/badge/İndir-Windows%20Taşınabilir%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.4.0/RyanDPI-Portable-Windows-2.4.0.zip)
-[![Android APK İndir](https://img.shields.io/badge/İndir-Android%20APK%20(v2.4.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.4.0/RyanDPI-Android-2.4.0.apk)
+[![Windows Kurulumunu İndir](https://img.shields.io/badge/İndir-Windows%20Kurulum%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.0.0/RyanDPI-Setup-Windows-3.0.0.exe)
+[![Taşınabilir ZIP İndir](https://img.shields.io/badge/İndir-Windows%20Taşınabilir%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.0.0/RyanDPI-Portable-Windows-3.0.0.zip)
+[![Android APK İndir](https://img.shields.io/badge/İndir-Android%20APK%20(v3.0.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.0.0/RyanDPI-Android-3.0.0.apk)
+
+---
+
+## Ülke ve Küresel Modlar
+
+İlk açılışta (veya üst bardaki **Bölge** butonundan istediğin zaman) ülkene uygun modu seç:
+
+| Mod | Hedef | Nasıl Çalışır? (Sıfır Oyun Gecikmesi) |
+| :--- | :--- | :--- |
+| **Evrensel Küresel** *(Önerilen)* | Türkiye, Rusya, İran, Endonezya, Mısır ve DPI engelli tüm İSS'ler | İlk aşamada 0 ms `--tlsrec 1+s` ile başlayan, sıkı İSS'lerde otomatik yükselen 7 aşamalı yerel motor + 24 saatlik IP önbelleği + Şifreli DNS. **Uzak VPN değildir — tam doğal internet hızı!** |
+| **Türkiye — BTK Sıfır Gecikme** | Discord, Roblox, Roblox Studio, Wattpad ve tüm BTK engelleri | Sıfır tekrarlı TLS bölme + Şifreli DNS (Türk Telekom / Superonline / Vodafone / Turkcell UDP/53 engellerini aşar). Oyun UDP paketleri %100 doğrudan gider (0 ms ekstra ping). |
+| **Rusya — TSPU Tam Erişim** | YouTube, Discord (+ Ses), Instagram, Roblox | İlk paketten TSPU kanıtlı `--split 2 --disorder -1+s --tlsrec 1+s` + OOB/fake-SNI zinciri + UDP ses bypass (`-a 1`) + Şifreli DoH DNS. |
+| **Brezilya — Discord Ekran Paylaşımı** | ANPD Coğrafi-IP kısıtlamasında Discord **Go Live / Ekran Paylaşımı & Kamera** açma | **Yalnızca Discord Bölünmüş Tüneli (Oyunlarda 0 ms ping!):** Valorant, CS2, Roblox, Fortnite %100 doğrudan kalırken **SADECE Discord** dahili ücretsiz **Cloudflare WARP MASQUE (`usque`)** veya **Özel Brezilya Dışı SOCKS5** üzerinden geçer. |
+
+---
+
+## Öne Çıkan Özellikler
+
+- **Windows & Android Desteği:** Windows 10/11 (x64) yerel masaüstü uygulaması + rootsuz evrensel **Android APK** (Android 10–16, Hızlı Ayarlar kutucuğu ve uygulama hariç tutma dahil).
+- **8 Dahili Dil (Tek Tıkla Seçim):** `EN`, `TR`, `PT`, `RU`, `FA`, `ID`, `ZH`, `AR` dilleri arasında üst bardan tek tıkla geçiş.
+- **Sıfır Hız Kaybı ve 0 ms Oyun Pingi:** Yerel DPI modu üçüncü parti VPN sunucularını kullanmaz; tüm indirmeler ve oyunlar gerçek internet hızınızda çalışır.
+- **Dahili Şifreli DNS:** Windows'ta **DNSCrypt-Proxy**, Android'de dahili **HTTP/2 DoH Ağ Geçidi** ile DNS zehirlenmesini ve UDP/53 engellerini sıfır ayar ile çözer.
+- **Bölgeye Özel Canlı Test:** Discord, Roblox Uygulaması, Roblox Studio, YouTube, Instagram, Wattpad, Şifreli DNS, doğrudan oyun pingi ve (Brezilya modunda) canlı çıkış ülkesini test eder.
+- **Otomatik Wi-Fi/Ağ Kurtarma ve SHA-256 Otomatik Güncelleyici:** Wi-Fi/Ethernet değişimlerinde kendini otomatik onarır, yeni sürümleri SHA-256 doğrulamasıyla tek tıkla günceller.
+
+---
+
+## Hızlı Kurulum
 
 ### Windows (10 & 11 x64)
-1. **[RyanDPI-Setup-Windows-2.4.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.4.0/RyanDPI-Setup-Windows-2.4.0.exe)** dosyasını indirip çalıştır (veya [Taşınabilir ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.4.0/RyanDPI-Portable-Windows-2.4.0.zip) arşivini çıkarıp `RyanDPI.exe` dosyasını aç).
-2. **RyanDPI** uygulamasını başlat (Windows hizmetlerini ve DNS'i yönetmek için Yönetici izni otomatik istenir).
-3. Sağ üst başlıktaki **`TR`** düğmesine tıklayarak tüm uygulamayı anında **Türkçe** yapabilirsin.
-4. **"RyanDPI'yı Kur ve Etkinleştir"** düğmesine tıkla ve 5 adımlı otomatik kurulumun (~10 saniye) tamamlanmasını bekle.
-5. **"Testi Çalıştır"** düğmesine basarak Discord, Roblox Uygulaması, Roblox Studio API, Roblox Web, Wattpad ve anlık ping değerlerini canlı doğrula.
-
-RyanDPI arka planda sessizce Windows hizmetleri (`RyanDpiEngine`, `ProxiFyreService` ve `dnscrypt-proxy`) olarak çalışır ve Wi-Fi/ağ değişikliklerinde otomatik kendini yeniler.
+1. **[RyanDPI-Setup-Windows-3.0.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.0.0/RyanDPI-Setup-Windows-3.0.0.exe)** kurulumunu indirip çalıştır (veya [Taşınabilir ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.0.0/RyanDPI-Portable-Windows-3.0.0.zip) çıkarıp `RyanDPI.exe`'yi aç).
+2. İlk açılışta **Türkiye** veya **Evrensel Küresel** modunu seç (üst bardan dilediğin zaman değiştirebilirsin).
+3. **"RyanDPI'yı Kur ve Etkinleştir"** düğmesine tıkla, ardından **"Testi Çalıştır"** ile Discord, Roblox ve canlı pingi doğrula.
 
 ### Android (Android 10–16, Root Gerekmez)
-1. **[RyanDPI-Android-2.4.0.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v2.4.0/RyanDPI-Android-2.4.0.apk)** dosyasını Android telefonuna indir ve açarak kur *(gerekirse tarayıcın için "Bilinmeyen uygulamalara izin ver" seçeneğini aç)*.
-2. **RyanDPI** uygulamasını aç, **"Bağlan & Her Şeyi Aç"** düğmesine dokun ve Android'in yerel VPN iznini onayla *(tamamen cihaz içi çalışır — uzak VPN sunucusu yoktur!)*.
-3. **"Test Et"** düğmesine basarak Discord, Roblox Uygulaması, Wattpad ve Şifreli DoH DNS'i canlı doğrula.
-4. *(İpucu)* Android bildirim paneline **RyanDPI Hızlı Ayarlar Kutucuğu** ekleyerek her yerden tek dokunuşla açıp kapatabilirsin!
-
----
-
-## İsteğe Bağlı Ayarlar
-
-RyanDPI hiçbir ayar yapmadan doğrudan çalışır, ancak **Ayarlar** sekmesinden dilediğin zaman özelleştirebilirsin:
-
-- **DPI Aşım Profili:**
-  - *Otomatik Evrensel (Önerilen)* — Tüm Türk İSS'leri için 6 aşamalı gecikmesiz uyarlanabilir zincir
-  - *Klasik Mod* — Otomatik yedekli ve tam hızlı tamponlu hafif TLS kayıt bölme
-  - *Sıkı İSS* — Superonline / mobil hatlar için agresif TLS + TCP bölme, OOB ve düşük TTL sahte paket zinciri
-  - *Özel Parametreler* — Kendi `ciadpi.exe` parametrelerini gir
-- **DNS Koruması:** Şifreli DNS (`dnscrypt-proxy`), Windows Yerel DoH veya Mevcut DNS Ayarlarını Koru.
-- **Yerel Ağ (LAN) ve Localhost'u Atla:** Yerel cihazlar ve localhost geliştirici sunucularının doğrudan kalması için varsayılan olarak açıktır.
-- **UDP'yi de Tünelle (Ses / QUIC):** Oyun pingini etkilememek için varsayılan olarak kapalıdır; sadece İSS'n Discord sesini veya QUIC'i engelliyorsa aç.
-- **Başlangıçta Otomatik Güncelle:** Varsayılan olarak açıktır; uygulama açıldığında GitHub Releases üzerinden yeni sürümleri otomatik indirip kurar.
-- **Hariç Tutulan Uygulamalar:** RyanDPI'dan atlamak istediğin uygulamaları isteğe bağlı olarak ekleyebilirsin (motor ve DNS hizmetleri döngüyü önlemek için her zaman otomatik hariç tutulur).
-
----
-
-## Kaynak Koddan Derleme
-
-### Gereksinimler
-- Windows 10 veya Windows 11 (x64)
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) veya daha yenisi
-- *(İsteğe bağlı)* Windows Kurulum `.exe` dosyası üretmek için [Inno Setup 6](https://jrsoftware.org/isinfo.php)
-
-### Derleme
-```bat
-git clone https://github.com/CallMeRyanYT/RyanDPI.git
-cd RyanDPI
-src\build.bat
-```
-Veya doğrudan `dotnet` ile:
-```powershell
-dotnet build src\RyanDPI\RyanDPI.csproj -c Release
-```
-Çalıştırmaya hazır derleme (tüm motor dosyaları ve gereksinimler dahil) `dist\RyanDPI\RyanDPI.exe` konumunda oluşturulur.
-
-### Android APK Derleme
-JDK 17–21 ve Android SDK (API 36) gerektirir:
-```bat
-cd android
-gradlew.bat assembleRelease
-```
-
----
-
-## Tamamen Kaldırma
-
-RyanDPI'yı ve yaptığı tüm sistem değişikliklerini (hizmetler, güvenlik duvarı kuralları ve otomatik DHCP DNS ayarları) istediğin zaman şu yöntemlerle tamamen kaldırabilirsin:
-- Uygulama içindeki **Kaldır** düğmesine tıklayarak, veya
-- Windows *Ayarlar > Uygulamalar* bölümünden **RyanDPI**'yı kaldırarak (Android uygulamasını normal şekilde kaldırabilirsin).
+1. **[RyanDPI-Android-3.0.0.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.0.0/RyanDPI-Android-3.0.0.apk)** dosyasını indirip telefonuna kur.
+2. Ülkeni seç, **"Bağlan & Aç"** düğmesine dokun ve Android yerel VPN iznini onayla *(uzak VPN sunucusu kullanmaz!)*.
+3. Bildirim paneline **RyanDPI Hızlı Ayarlar Kutucuğu** ekleyerek tek dokunuşla aç/kapa.
 
 ---
 
 ## Açık Kaynak Bileşenler
 
 - **[ByeDPI (`ciadpi`)](https://github.com/hufrea/byedpi)** — hufrea
-- **[hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel)** — heiher (Android yerel TUN motoru)
+- **[usque](https://github.com/Diniboy1123/usque)** — Diniboy1123 (Cloudflare WARP HTTP/3 MASQUE)
+- **[hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel)** — heiher
 - **[ProxiFyre](https://github.com/wiresock/proxifyre)** & **Windows Packet Filter (`NDISRD`)** — NT Kernel / Vadim Smirnov
 - **[dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy)** — Frank Denis
 
@@ -108,4 +66,4 @@ RyanDPI'yı ve yaptığı tüm sistem değişikliklerini (hizmetler, güvenlik d
 
 ## Lisans
 
-MIT Lisansı — ayrıntılar için [LICENSE](LICENSE) dosyasına bakın.
+MIT Lisansı — bkz. [LICENSE](LICENSE).

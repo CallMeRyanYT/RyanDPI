@@ -1,8 +1,8 @@
-; RyanDPI Windows Installer Script (English & Turkish)
+; RyanDPI Unbound Windows Installer Script (EN / TR / PT-BR / RU / AR)
 ; Requires Inno Setup 6
 
 #define MyAppName "RyanDPI"
-#define MyAppVersion "2.4.0"
+#define MyAppVersion "3.0.0"
 #define MyAppPublisher "RyanDPI"
 #define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
 #define MyAppExeName "RyanDPI.exe"
@@ -10,19 +10,40 @@
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
+Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
+Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
+Name: "arabic"; MessagesFile: "compiler:Languages\Arabic.isl"
 
 [CustomMessages]
-english.WelcomeLabel2=This wizard will install [name/ver] on your computer.%n%n[name] unlocks all blocked apps and websites in Turkey (including Roblox Studio, Roblox Player, Discord, and all browsers) with zero speed loss.%n%nClick Next to continue.
+english.WelcomeLabel2=This wizard will install [name/ver] (Unbound) on your computer.%n%n[name] unlocks blocked apps and websites worldwide (Turkey, Russia, Brazil Discord Screen Share, Iran, Indonesia, and global DPI ISPs) with zero gaming lag.%n%nClick Next to continue.
 english.LaunchAfterInstall=Launch RyanDPI now
 english.CreateDesktopShortcut=Create a desktop shortcut
 english.UninstallProgress=Stopping RyanDPI services and restoring network settings...
-english.DotNetMissing=RyanDPI requires Microsoft .NET 8.0 Desktop Runtime (x64), which was not detected on this PC.%n%nWould you like to open Microsoft's official download page now? (You can still continue installation afterwards.)
+english.DotNetMissing=RyanDPI requires Microsoft .NET 8.0 Desktop Runtime (x64), which was not detected on this PC.%n%nWould you like to open Microsoft's official download page now?
 
-turkish.WelcomeLabel2=Bu sihirbaz bilgisayarınıza [name/ver] uygulamasını kuracaktır.%n%n[name], Türkiye'de engelli tüm uygulama ve web sitelerini (Roblox Studio, Roblox Uygulaması, Discord ve tüm tarayıcılar dahil) hız kaybı olmadan açar.%n%nDevam etmek için İleri'ye tıklayın.
+turkish.WelcomeLabel2=Bu sihirbaz bilgisayarınıza [name/ver] (Unbound) sürümünü kuracaktır.%n%n[name], Türkiye, Rusya, Brezilya ve dünya genelinde engelli tüm uygulama ve siteleri oyun pingini artırmadan açar.%n%nDevam etmek için İleri'ye tıklayın.
 turkish.LaunchAfterInstall=RyanDPI'yı şimdi başlat
 turkish.CreateDesktopShortcut=Masaüstü kısayolu oluştur
 turkish.UninstallProgress=RyanDPI hizmetleri durduruluyor ve ağ ayarları geri yükleniyor...
-turkish.DotNetMissing=RyanDPI için Microsoft .NET 8.0 Desktop Runtime (x64) gereklidir ancak bu bilgisayarda bulunamadı.%n%nMicrosoft'un resmi indirme sayfasını şimdi açmak ister misiniz? (Sonrasında kuruluma devam edebilirsiniz.)
+turkish.DotNetMissing=RyanDPI için Microsoft .NET 8.0 Desktop Runtime (x64) gereklidir ancak bulunamadı.%n%nResmi indirme sayfasını şimdi açmak ister misiniz?
+
+brazilianportuguese.WelcomeLabel2=Este assistente instalará o [name/ver] (Unbound) no seu computador.%n%nO [name] desbloqueia o Compartilhamento de Tela e Vídeo do Discord no Brasil (0 ms de lag em jogos) e contorna bloqueios DPI no mundo todo.%n%nClique em Avançar para continuar.
+brazilianportuguese.LaunchAfterInstall=Iniciar o RyanDPI agora
+brazilianportuguese.CreateDesktopShortcut=Criar atalho na área de trabalho
+brazilianportuguese.UninstallProgress=Parando os serviços do RyanDPI e restaurando a rede...
+brazilianportuguese.DotNetMissing=O RyanDPI requer o Microsoft .NET 8.0 Desktop Runtime (x64), que não foi encontrado.%n%nDeseja abrir a página oficial de download agora?
+
+russian.WelcomeLabel2=Этот мастер установит [name/ver] (Unbound) на ваш компьютер.%n%n[name] разблокирует YouTube, Discord, Instagram, Roblox и заблокированные сайты по всему миру без задержек в играх.%n%nНажмите Далее, чтобы продолжить.
+russian.LaunchAfterInstall=Запустить RyanDPI сейчас
+russian.CreateDesktopShortcut=Создать ярлык на рабочем столе
+russian.UninstallProgress=Остановка служб RyanDPI и восстановление настроек сети...
+russian.DotNetMissing=Для работы RyanDPI требуется Microsoft .NET 8.0 Desktop Runtime (x64).%n%nОткрыть официальную страницу загрузки Microsoft?
+
+arabic.WelcomeLabel2=سيقوم هذا المعالج بتثبيت [name/ver] (Unbound) على جهازك.%n%nيقوم [name] بفتح التطبيقات والمواقع المحجوبة عالمياً بدون أي زيادة في البنق أثناء اللعب.%n%nانقر التالي للمتابعة.
+arabic.LaunchAfterInstall=تشغيل RyanDPI الآن
+arabic.CreateDesktopShortcut=إنشاء اختصار على سطح المكتب
+arabic.UninstallProgress=إيقاف خدمات RyanDPI واستعادة إعدادات الشبكة...
+arabic.DotNetMissing=يتطلب RyanDPI وجود Microsoft .NET 8.0 Desktop Runtime (x64).%n%nهل تريد فتح صفحة التنزيل الرسمية الآن؟
 
 [Setup]
 ShowLanguageDialog=auto

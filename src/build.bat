@@ -48,9 +48,9 @@ echo      Portable folder ready at: dist\RyanDPI\RyanDPI.exe
 echo.
 
 echo [INFO] Packaging portable ZIP archive...
-powershell -NoProfile -Command "if (Test-Path '..\dist\RyanDPI-Portable-Windows-2.4.0.zip') { Remove-Item '..\dist\RyanDPI-Portable-Windows-2.4.0.zip' -Force }; Compress-Archive -Path '..\dist\RyanDPI\*' -DestinationPath '..\dist\RyanDPI-Portable-Windows-2.4.0.zip' -CompressionLevel Optimal"
+powershell -NoProfile -Command "if (Test-Path '..\dist\RyanDPI-Portable-Windows-3.0.0.zip') { Remove-Item '..\dist\RyanDPI-Portable-Windows-3.0.0.zip' -Force }; Compress-Archive -Path '..\dist\RyanDPI\*' -DestinationPath '..\dist\RyanDPI-Portable-Windows-3.0.0.zip' -CompressionLevel Optimal"
 if not errorlevel 1 (
-    echo [OK] Portable ZIP created at: dist\RyanDPI-Portable-Windows-2.4.0.zip
+    echo [OK] Portable ZIP created at: dist\RyanDPI-Portable-Windows-3.0.0.zip
 )
 
 set "ISCC_EXE="
@@ -68,7 +68,7 @@ if defined ISCC_EXE (
         popd
         exit /b 1
     )
-    echo [OK] Installer ready at: dist\RyanDPI-Setup-Windows-2.4.0.exe
+    echo [OK] Installer ready at: dist\RyanDPI-Setup-Windows-3.0.0.exe
 ) else (
     echo [INFO] Inno Setup 6 not found. To build the Windows Setup .exe, install Inno Setup 6 and run:
     echo        iscc "src\RyanDPI-Setup.iss"
