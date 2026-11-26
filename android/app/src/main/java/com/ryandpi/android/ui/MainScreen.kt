@@ -3,6 +3,7 @@ package com.ryandpi.android.ui
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DarkMode
@@ -48,6 +50,7 @@ import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -77,8 +80,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -96,10 +104,12 @@ import com.ryandpi.android.engine.LogEntry
 import com.ryandpi.android.engine.LogLevel
 import com.ryandpi.android.engine.RegionPreset
 import com.ryandpi.android.engine.RyanDpiSettings
+import com.ryandpi.android.engine.SplitTunnelMode
 import com.ryandpi.android.engine.VpnStatus
 import com.ryandpi.android.engine.VpnUiState
 import com.ryandpi.android.network.AndroidUpdateInfo
 import com.ryandpi.android.network.SelfTestItem
+import com.ryandpi.android.service.RyanDpiVpnService
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -120,6 +130,7 @@ fun RyanDpiMainScreen(
     updateStatusMsg: String?,
     settingsDirtyWhileConnected: Boolean,
     installedApps: List<InstalledAppItem>,
+    isBatteryUnrestricted: Boolean,
     onToggleConnection: () -> Unit,
     onReconnectApply: () -> Unit,
     onRunSelfTest: () -> Unit,
@@ -129,6 +140,8 @@ fun RyanDpiMainScreen(
     onCheckUpdates: () -> Unit,
     onStartUpdateDownload: (AndroidUpdateInfo) -> Unit,
     onOpenPrivateDnsHelper: () -> Unit,
+    onRequestBatteryWhitelist: () -> Unit,
+    onOpenSystemAlwaysOnVpn: () -> Unit,
     onCopyLogs: () -> Unit,
     onClearLogs: () -> Unit,
     onOpenGithub: () -> Unit,
@@ -185,9 +198,12 @@ fun RyanDpiMainScreen(
                     vpnState = vpnState,
                     strings = s,
                     settingsDirtyWhileConnected = settingsDirtyWhileConnected,
+                    isBatteryUnrestricted = isBatteryUnrestricted,
                     onUpdateSettings = onUpdateSettings,
                     onReconnectApply = onReconnectApply,
                     onOpenPrivateDnsHelper = onOpenPrivateDnsHelper,
+                    onRequestBatteryWhitelist = onRequestBatteryWhitelist,
+                    onOpenSystemAlwaysOnVpn = onOpenSystemAlwaysOnVpn,
                     onOpenExcludedApps = {
                         onLoadInstalledApps()
                         showExcludedAppsDialog = true
@@ -236,14 +252,22 @@ fun RyanDpiMainScreen(
     }
 
     if (showExcludedAppsDialog) {
+        val isOnlySelected = settings.splitTunnelMode == SplitTunnelMode.ONLY_SELECTED
+        val currentSet = if (isOnlySelected) settings.selectedOnlyPackages else settings.excludedPackages
         ExcludedAppsDialog(
+            title = if (isOnlySelected) s.btnManageOnlyApps else s.btnManageApps,
             strings = s,
             installedApps = installedApps,
-            excludedPackages = settings.excludedPackages,
+            excludedPackages = currentSet,
             onToggleApp = { pkg ->
-                val updated = settings.excludedPackages.toMutableSet()
+                val updated = currentSet.toMutableSet()
                 if (updated.contains(pkg)) updated.remove(pkg) else updated.add(pkg)
-                onUpdateSettings(settings.copy(excludedPackages = updated), true)
+                val nextSettings = if (isOnlySelected) {
+                    settings.copy(selectedOnlyPackages = updated)
+                } else {
+                    settings.copy(excludedPackages = updated)
+                }
+                onUpdateSettings(nextSettings, true)
             },
             onDismiss = { showExcludedAppsDialog = false }
         )
@@ -587,9 +611,12 @@ private fun HomeTab(
                     InfoPill(
                         label = if (settings.region == RegionPreset.BRAZIL) {
                             "Discord Only"
+                        } else if (settings.splitTunnelMode == SplitTunnelMode.ONLY_SELECTED && settings.selectedOnlyPackages.isNotEmpty()) {
+                            "Only ${settings.selectedOnlyPackages.size} Apps"
                         } else {
                             when (settings.bypassProfile) {
                                 BypassProfile.AUTO_UNIVERSAL -> "7-Stage Global"
+                                BypassProfile.TURKEY_BTK -> "Turkey BTK"
                                 BypassProfile.RUSSIA_TSPU -> "Russia TSPU"
                                 BypassProfile.CLASSIC_BYEDPI -> "Classic"
                                 BypassProfile.STRICT_ISP -> "Strict ISP"
@@ -598,30 +625,81 @@ private fun HomeTab(
                         },
                         accent = c.textSecondary
                     )
+                    if (settings.permanentAlwaysOn) {
+                        InfoPill(label = "ALWAYS-ON", accent = c.accentRed)
+                    }
                 }
 
-                // Live Metrics Row when Connected
+                // Live Throughput Speedometer + Sparkline + Session Totals when Connected
                 AnimatedVisibility(visible = isConnected) {
                     Column {
                         Spacer(modifier = Modifier.height(16.dp))
                         val uptimeSec = ((nowMs - vpnState.connectedSinceMs) / 1000L).coerceAtLeast(0L)
-                        Row(
+                        val dnsHitPct = if (vpnState.dnsQueries > 0) {
+                            ((vpnState.dnsCacheHits * 100L) / vpnState.dnsQueries).coerceIn(0L, 100L)
+                        } else 0L
+
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(c.bgCardAlt)
                                 .border(1.dp, c.borderSubtle, RoundedCornerShape(14.dp))
-                                .padding(vertical = 10.dp, horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                                .padding(vertical = 10.dp, horizontal = 10.dp)
                         ) {
-                            MetricItem(strings.metricDownload, formatBytes(vpnState.rxBytes), c.success)
-                            MetricItem(strings.metricUpload, formatBytes(vpnState.txBytes), c.accentRed)
-                            MetricItem(
-                                strings.metricDnsQueries,
-                                "${vpnState.dnsQueries}",
-                                c.textPrimary
+                            // Live Real-Time In/Out Speed Bar
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "↓ ${RyanDpiVpnService.formatSpeed(vpnState.rxBytesPerSec)}",
+                                    color = c.success,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                if (vpnState.networkLabel.isNotBlank()) {
+                                    Text(
+                                        text = vpnState.networkLabel,
+                                        color = c.textMuted,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    text = "↑ ${RyanDpiVpnService.formatSpeed(vpnState.txBytesPerSec)}",
+                                    color = c.accentRed,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LiveTrafficSparkline(
+                                rxHistory = vpnState.rxSpeedHistory,
+                                txHistory = vpnState.txSpeedHistory,
+                                rxColor = c.success,
+                                txColor = c.accentRed,
+                                gridColor = c.borderSubtle
                             )
-                            MetricItem(strings.metricUptime, formatUptime(uptimeSec), c.textPrimary)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = c.borderSubtle)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                MetricItem(strings.metricDownload, formatBytes(vpnState.rxBytes), c.success)
+                                MetricItem(strings.metricUpload, formatBytes(vpnState.txBytes), c.accentRed)
+                                MetricItem(
+                                    strings.metricDnsQueries,
+                                    if (vpnState.dnsQueries > 0) "${vpnState.dnsQueries} (${dnsHitPct}%)" else "0",
+                                    c.textPrimary
+                                )
+                                MetricItem(strings.metricUptime, formatUptime(uptimeSec), c.textPrimary)
+                            }
                         }
                     }
                 }
@@ -847,9 +925,12 @@ private fun SettingsTab(
     vpnState: VpnUiState,
     strings: AppStrings,
     settingsDirtyWhileConnected: Boolean,
+    isBatteryUnrestricted: Boolean,
     onUpdateSettings: (RyanDpiSettings, Boolean) -> Unit,
     onReconnectApply: () -> Unit,
     onOpenPrivateDnsHelper: () -> Unit,
+    onRequestBatteryWhitelist: () -> Unit,
+    onOpenSystemAlwaysOnVpn: () -> Unit,
     onOpenExcludedApps: () -> Unit
 ) {
     val c = LocalRyanDpiColors.current
@@ -1025,6 +1106,68 @@ private fun SettingsTab(
             }
         }
 
+        // 0b. Permanent Always-On & Live Traffic Notification Card
+        SettingsCard(
+            title = strings.settingsPermanentTitle,
+            subtitle = strings.settingsPermanentSub,
+            icon = Icons.Rounded.VerifiedUser
+        ) {
+            ToggleSettingRow(
+                title = strings.togglePermanentTitle,
+                description = strings.togglePermanentDesc,
+                checked = settings.permanentAlwaysOn,
+                onCheckedChange = { enabled ->
+                    onUpdateSettings(
+                        settings.copy(
+                            permanentAlwaysOn = enabled,
+                            autoStartOnBoot = if (enabled) true else settings.autoStartOnBoot
+                        ),
+                        true
+                    )
+                }
+            )
+            HorizontalDivider(color = c.borderSubtle, modifier = Modifier.padding(vertical = 8.dp))
+            ToggleSettingRow(
+                title = strings.toggleLiveNotifTitle,
+                description = strings.toggleLiveNotifDesc,
+                checked = settings.showLiveTrafficNotification,
+                onCheckedChange = { onUpdateSettings(settings.copy(showLiveTrafficNotification = it), true) }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            InfoPill(
+                label = if (isBatteryUnrestricted) strings.batteryProtectedLabel else strings.batteryRestrictedLabel,
+                accent = if (isBatteryUnrestricted) c.success else c.warning
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            if (!isBatteryUnrestricted) {
+                Button(
+                    onClick = onRequestBatteryWhitelist,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = c.accentRed),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Rounded.BatteryChargingFull, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(strings.btnBatteryWhitelist, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            OutlinedButton(
+                onClick = onOpenSystemAlwaysOnVpn,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, c.borderSubtle),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = c.bgCardAlt,
+                    contentColor = c.textPrimary
+                )
+            ) {
+                Icon(Icons.Rounded.Security, contentDescription = null, tint = c.accentRed, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(strings.btnSystemAlwaysOnVpn, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
         // 1. DNS Poisoning Protection Card (Global / Turkey / Russia)
         if (settings.region != RegionPreset.BRAZIL) SettingsCard(
             title = strings.settingsDnsCardTitle,
@@ -1104,6 +1247,13 @@ private fun SettingsTab(
                 title = strings.profileAutoTitle,
                 description = strings.profileAutoDesc,
                 onClick = { onUpdateSettings(settings.copy(bypassProfile = BypassProfile.AUTO_UNIVERSAL), true) }
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            RadioOptionRow(
+                selected = settings.bypassProfile == BypassProfile.TURKEY_BTK,
+                title = strings.profileTurkeyTitle,
+                description = strings.profileTurkeyDesc,
+                onClick = { onUpdateSettings(settings.copy(bypassProfile = BypassProfile.TURKEY_BTK), true) }
             )
             Spacer(modifier = Modifier.height(6.dp))
             RadioOptionRow(
@@ -1198,19 +1348,62 @@ private fun SettingsTab(
             )
         }
 
-        // 4. Excluded Apps (Split Tunnel) Card
-        SettingsCard(
+        // 4. Dual Split-Tunnel Apps Card (All Except Excluded OR Only Selected Apps)
+        if (settings.region != RegionPreset.BRAZIL) SettingsCard(
             title = strings.excludedAppsTitle,
             subtitle = strings.excludedAppsSub,
             icon = Icons.Rounded.Apps
         ) {
+            val isOnlySelected = settings.splitTunnelMode == SplitTunnelMode.ONLY_SELECTED
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    onClick = { onUpdateSettings(settings.copy(splitTunnelMode = SplitTunnelMode.EXCLUDE_SELECTED), true) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (!isOnlySelected) c.accentRed.copy(alpha = 0.16f) else c.bgCardAlt,
+                    border = BorderStroke(1.dp, if (!isOnlySelected) c.accentRed else c.borderSubtle)
+                ) {
+                    Text(
+                        text = strings.splitModeAllExcept,
+                        color = if (!isOnlySelected) c.accentRed else c.textSecondary,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 9.dp, horizontal = 6.dp)
+                    )
+                }
+                Surface(
+                    onClick = { onUpdateSettings(settings.copy(splitTunnelMode = SplitTunnelMode.ONLY_SELECTED), true) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isOnlySelected) c.accentRed.copy(alpha = 0.16f) else c.bgCardAlt,
+                    border = BorderStroke(1.dp, if (isOnlySelected) c.accentRed else c.borderSubtle)
+                ) {
+                    Text(
+                        text = strings.splitModeOnlySelected,
+                        color = if (isOnlySelected) c.accentRed else c.textSecondary,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 9.dp, horizontal = 6.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                val count = if (isOnlySelected) settings.selectedOnlyPackages.size else settings.excludedPackages.size
+                val suffix = if (isOnlySelected) strings.selectedAppsCount else strings.excludedAppsCount
                 InfoPill(
-                    label = "${settings.excludedPackages.size} ${strings.excludedAppsCount}",
+                    label = "$count $suffix",
                     accent = c.accentRed
                 )
                 Button(
@@ -1219,7 +1412,11 @@ private fun SettingsTab(
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                 ) {
-                    Text(strings.btnManageApps, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (isOnlySelected) strings.btnManageOnlyApps else strings.btnManageApps,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -1581,6 +1778,7 @@ private fun LanguagePickerDialog(
 
 @Composable
 private fun ExcludedAppsDialog(
+    title: String,
     strings: AppStrings,
     installedApps: List<InstalledAppItem>,
     excludedPackages: Set<String>,
@@ -1617,7 +1815,7 @@ private fun ExcludedAppsDialog(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = strings.excludedAppsTitle,
+                    text = title,
                     color = c.textPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
@@ -1843,6 +2041,55 @@ private fun InfoPill(label: String, accent: Color) {
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )
+    }
+}
+
+@Composable
+private fun LiveTrafficSparkline(
+    rxHistory: List<Long>,
+    txHistory: List<Long>,
+    rxColor: Color,
+    txColor: Color,
+    gridColor: Color
+) {
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp)
+    ) {
+        val w = size.width
+        val h = size.height
+        if (w <= 0f || h <= 0f) return@Canvas
+
+        // Subtle baseline & mid grid line
+        drawLine(gridColor.copy(alpha = 0.45f), Offset(0f, h - 1f), Offset(w, h - 1f), strokeWidth = 1f)
+        drawLine(gridColor.copy(alpha = 0.25f), Offset(0f, h * 0.5f), Offset(w, h * 0.5f), strokeWidth = 1f)
+
+        val maxVal = maxOf(
+            rxHistory.maxOrNull() ?: 0L,
+            txHistory.maxOrNull() ?: 0L,
+            1024L
+        ).toFloat()
+
+        fun drawSeries(points: List<Long>, color: Color, strokeWidth: Float) {
+            if (points.size < 2) return
+            val path = Path()
+            val stepX = w / (points.size - 1).coerceAtLeast(1)
+            points.forEachIndexed { idx, v ->
+                val x = idx * stepX
+                val ratio = (v.toFloat() / maxVal).coerceIn(0f, 1f)
+                val y = h - 3f - ratio * (h - 6f)
+                if (idx == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(
+                path = path,
+                color = color,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
+        }
+
+        drawSeries(txHistory, txColor.copy(alpha = 0.85f), 2.5f)
+        drawSeries(rxHistory, rxColor, 3.2f)
     }
 }
 

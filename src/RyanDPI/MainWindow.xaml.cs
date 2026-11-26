@@ -416,6 +416,7 @@ namespace RyanDPI
                 // Settings page — DPI Profile
                 TxtProfileSectionTitle.Text = LocalizationService.T("Settings_ProfileTitle");
                 ItemProfileAuto.Content = LocalizationService.T("Profile_AutoUniversal");
+                ItemProfileTurkey.Content = LocalizationService.T("Profile_TurkeyBtk");
                 ItemProfileRussia.Content = LocalizationService.T("Profile_RussiaTspu");
                 ItemProfileClassic.Content = LocalizationService.T("Profile_Classic");
                 ItemProfileStrict.Content = LocalizationService.T("Profile_StrictIsp");
@@ -956,7 +957,13 @@ namespace RyanDPI
                 _isUpdatingLanguage = true;
                 try
                 {
-                    if (region == RegionPreset.Russia)
+                    if (region == RegionPreset.Turkey)
+                    {
+                        SelectComboByTag(CmbProfile, nameof(BypassProfile.TurkeyBtk));
+                        SelectComboByTag(CmbDnsMode, nameof(DnsProtectionMode.EncryptedDnsProxy));
+                        ChkTunnelUdp.IsChecked = false;
+                    }
+                    else if (region == RegionPreset.Russia)
                     {
                         SelectComboByTag(CmbProfile, nameof(BypassProfile.RussiaTspu));
                         SelectComboByTag(CmbDnsMode, nameof(DnsProtectionMode.EncryptedDnsProxy));
@@ -1039,6 +1046,7 @@ namespace RyanDPI
             PanelCustomArgs.Visibility = tag == nameof(BypassProfile.Custom) ? Visibility.Visible : Visibility.Collapsed;
             TxtProfileDescription.Text = tag switch
             {
+                nameof(BypassProfile.TurkeyBtk) => LocalizationService.T("Profile_Desc_Turkey"),
                 nameof(BypassProfile.RussiaTspu) => LocalizationService.T("Profile_Desc_Russia"),
                 nameof(BypassProfile.ClassicByeDpi) => LocalizationService.T("Profile_Desc_Classic"),
                 nameof(BypassProfile.StrictIsp) => LocalizationService.T("Profile_Desc_Strict"),

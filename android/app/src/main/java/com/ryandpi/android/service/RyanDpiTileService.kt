@@ -8,6 +8,7 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.annotation.RequiresApi
 import com.ryandpi.android.MainActivity
+import com.ryandpi.android.engine.RegionPreset
 import com.ryandpi.android.engine.RyanDpiSettings
 import com.ryandpi.android.engine.VpnStateHolder
 import com.ryandpi.android.engine.VpnStatus
@@ -24,6 +25,7 @@ class RyanDpiTileService : TileService() {
         super.onClick()
         val current = VpnStateHolder.state.value.status
         if (current == VpnStatus.CONNECTED || current == VpnStatus.CONNECTING) {
+            RyanDpiSettings.setUserWantsConnected(this, false)
             RyanDpiVpnService.stopService(this)
             updateTile(Tile.STATE_INACTIVE)
             return
@@ -51,6 +53,7 @@ class RyanDpiTileService : TileService() {
             return
         }
 
+        RyanDpiSettings.setUserWantsConnected(this, true)
         RyanDpiVpnService.startService(this)
         updateTile(Tile.STATE_ACTIVE)
     }
@@ -66,16 +69,37 @@ class RyanDpiTileService : TileService() {
 
     private fun updateTile(state: Int) {
         val tile = qsTile ?: return
-        val isTr = RyanDpiSettings.load(this).language == "tr"
+        val settings = RyanDpiSettings.load(this)
+        val regionTag = when (settings.region) {
+            RegionPreset.TURKEY -> "TR"
+            RegionPreset.RUSSIA -> "RU"
+            RegionPreset.BRAZIL -> "BR"
+            RegionPreset.GLOBAL_UNIVERSAL -> "GLOBAL"
+        }
         tile.state = state
         tile.label = "RyanDPI"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            tile.subtitle = when {
-                state == Tile.STATE_ACTIVE && isTr -> "Aktif"
-                state == Tile.STATE_ACTIVE -> "Active"
-                isTr -> "Kapalı"
+            val activeWord = when (settings.language) {
+                "tr" -> "Aktif"
+                "pt" -> "Ativo"
+                "ru" -> "Активен"
+                "fa" -> "فعال"
+                "id" -> "Aktif"
+                "zh" -> "已开启"
+                "ar" -> "نشط"
+                else -> "Active"
+            }
+            val offWord = when (settings.language) {
+                "tr" -> "Kapalı"
+                "pt" -> "Off"
+                "ru" -> "Выкл"
+                "fa" -> "خاموش"
+                "id" -> "Mati"
+                "zh" -> "已关闭"
+                "ar" -> "متوقف"
                 else -> "Off"
             }
+            tile.subtitle = if (state == Tile.STATE_ACTIVE) "$activeWord • $regionTag" else offWord
         }
         tile.updateTile()
     }

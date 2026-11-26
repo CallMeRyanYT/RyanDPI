@@ -26,7 +26,8 @@ namespace RyanDPI.Models
 
     public enum BypassProfile
     {
-        AutoUniversal, // 7-stage zero-retransmit Global adaptive chain (Turkey + Russia TSPU + Worldwide)
+        AutoUniversal, // 7-stage zero-retransmit Global adaptive chain (any unlisted country)
+        TurkeyBtk,     // Ultra-lean 3-stage Turkey BTK chain (0ms Stage 1, lowest RAM/latency)
         RussiaTspu,    // Russia TSPU-first chain (YouTube, Discord, Instagram, Roblox on packet 1)
         ClassicByeDpi, // Classic lightweight ByeDPI strategy with full-speed buffers
         StrictIsp,     // Aggressive TLS record + OOB + fake SNI TTL chain
@@ -50,6 +51,14 @@ namespace RyanDPI.Models
             "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
             "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
             "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err";
+
+        // Ultra-lean 3-stage Turkey BTK chain: 0ms Stage 1 (--tlsrec 1+s) + Superonline split/OOB fallbacks.
+        // Skips Russia/Iran fake-SNI stages so slow sites never waste time on unnecessary retries.
+        public const string TurkeyBtkStrategy =
+            "--tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
             "--auto=torst,redirect,ssl_err";
 
         // Russia TSPU-first chain: opens immediately with proven Rostelecom/MTS/YouTube/Discord split+disorder+tlsrec
@@ -111,7 +120,7 @@ namespace RyanDPI.Models
             switch (region)
             {
                 case RegionPreset.Turkey:
-                    Profile = BypassProfile.AutoUniversal;
+                    Profile = BypassProfile.TurkeyBtk;
                     DnsMode = DnsProtectionMode.EncryptedDnsProxy;
                     TunnelUdp = false;
                     break;
@@ -138,12 +147,12 @@ namespace RyanDPI.Models
 
         public string BuildCiadpiArguments()
         {
-            // High-throughput, lowest-latency loopback settings:
+            // Low-RAM, lowest-latency loopback settings:
             // -i 127.0.0.1 -p 1080 : Loopback-only local SOCKS5 proxy
-            // -c 4096              : Support 4,096 concurrent sockets across all apps
-            // -b 131072            : 128 KB socket buffer for full gigabit line speed
+            // -c 2048              : Supports 2,048 concurrent sockets at half the RAM footprint
+            // -b 65536             : 64 KB socket buffer (saturates 2.5 Gbps while keeping RSS tiny)
             // -u 86400 -T 2 -L 3   : 24h per-IP strategy cache, fast 2s fallback trigger, adaptive sorting
-            var baseFlags = $"-i 127.0.0.1 -p {DefaultSocksPort} -c 4096 -b 131072 -u 86400 -T 2 -L 3";
+            var baseFlags = $"-i 127.0.0.1 -p {DefaultSocksPort} -c 2048 -b 65536 -u 86400 -T 2 -L 3";
             if (TunnelUdp)
             {
                 baseFlags += " -a 1";
@@ -151,6 +160,7 @@ namespace RyanDPI.Models
 
             var rawStrategy = Profile switch
             {
+                BypassProfile.TurkeyBtk => TurkeyBtkStrategy,
                 BypassProfile.RussiaTspu => RussiaTspuStrategy,
                 BypassProfile.ClassicByeDpi => ClassicByeDpiStrategy,
                 BypassProfile.StrictIsp => StrictIspStrategy,

@@ -30,10 +30,16 @@ enum class DohProvider(val displayName: String, val endpointUrl: String, val pla
 
 enum class BypassProfile {
     AUTO_UNIVERSAL,
+    TURKEY_BTK,
     RUSSIA_TSPU,
     CLASSIC_BYEDPI,
     STRICT_ISP,
     CUSTOM
+}
+
+enum class SplitTunnelMode {
+    EXCLUDE_SELECTED, // Unlock all apps except the excluded list
+    ONLY_SELECTED     // Route ONLY checked apps (maximum battery & 0ms gaming ping)
 }
 
 data class ParsedSocksEndpoint(val host: String, val port: Int)
@@ -54,9 +60,13 @@ data class RyanDpiSettings(
     val customStrategyArgs: String = AUTO_UNIVERSAL_STRATEGY,
     val udpBypass: Boolean = true,
     val ipv6Enabled: Boolean = false,
+    val permanentAlwaysOn: Boolean = false,
+    val showLiveTrafficNotification: Boolean = true,
     val autoStartOnBoot: Boolean = false,
     val autoCheckUpdates: Boolean = true,
-    val excludedPackages: Set<String> = emptySet()
+    val splitTunnelMode: SplitTunnelMode = SplitTunnelMode.EXCLUDE_SELECTED,
+    val excludedPackages: Set<String> = emptySet(),
+    val selectedOnlyPackages: Set<String> = emptySet()
 ) {
     companion object {
         const val GATEWAY_PORT = 1080
@@ -79,6 +89,13 @@ data class RyanDpiSettings(
                 "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
                 "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
                 "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err"
+
+        // Ultra-lean 3-stage Turkey BTK strategy: 0ms Stage 1 + Superonline fallbacks (zero wasted Russia/Iran retries)
+        const val TURKEY_BTK_STRATEGY =
+            "--tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
                 "--auto=torst,redirect,ssl_err"
 
         const val RUSSIA_TSPU_STRATEGY =
@@ -135,6 +152,18 @@ data class RyanDpiSettings(
             return ParsedSocksEndpoint(host, port)
         }
 
+        fun setUserWantsConnected(context: Context, wants: Boolean) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("user_wants_connected", wants)
+                .apply()
+        }
+
+        fun getUserWantsConnected(context: Context): Boolean {
+            return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean("user_wants_connected", false)
+        }
+
         fun load(context: Context): RyanDpiSettings {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val defaultLang = normalizeLanguage(Locale.getDefault().language)
@@ -143,6 +172,7 @@ data class RyanDpiSettings(
             val dnsModeName = prefs.getString("dns_mode", DnsMode.ENCRYPTED_DOH.name)
             val dohName = prefs.getString("doh_provider", DohProvider.CLOUDFLARE.name)
             val profileName = prefs.getString("bypass_profile", BypassProfile.AUTO_UNIVERSAL.name)
+            val splitModeName = prefs.getString("split_tunnel_mode", SplitTunnelMode.EXCLUDE_SELECTED.name)
             val rawCustom = prefs.getString("custom_strategy", AUTO_UNIVERSAL_STRATEGY)
                 ?.takeIf { it.isNotBlank() } ?: AUTO_UNIVERSAL_STRATEGY
 
@@ -162,9 +192,13 @@ data class RyanDpiSettings(
                 customStrategyArgs = rawCustom,
                 udpBypass = prefs.getBoolean("udp_bypass", true),
                 ipv6Enabled = prefs.getBoolean("ipv6_enabled", false),
+                permanentAlwaysOn = prefs.getBoolean("permanent_always_on", false),
+                showLiveTrafficNotification = prefs.getBoolean("live_traffic_notification", true),
                 autoStartOnBoot = prefs.getBoolean("auto_start_boot", false),
                 autoCheckUpdates = prefs.getBoolean("auto_check_updates", true),
-                excludedPackages = prefs.getStringSet("excluded_packages", emptySet())?.toSet() ?: emptySet()
+                splitTunnelMode = runCatching { SplitTunnelMode.valueOf(splitModeName ?: "") }.getOrDefault(SplitTunnelMode.EXCLUDE_SELECTED),
+                excludedPackages = prefs.getStringSet("excluded_packages", emptySet())?.toSet() ?: emptySet(),
+                selectedOnlyPackages = prefs.getStringSet("selected_only_packages", emptySet())?.toSet() ?: emptySet()
             )
         }
 
@@ -186,9 +220,13 @@ data class RyanDpiSettings(
                 .putString("custom_strategy", settings.customStrategyArgs)
                 .putBoolean("udp_bypass", settings.udpBypass)
                 .putBoolean("ipv6_enabled", settings.ipv6Enabled)
+                .putBoolean("permanent_always_on", settings.permanentAlwaysOn)
+                .putBoolean("live_traffic_notification", settings.showLiveTrafficNotification)
                 .putBoolean("auto_start_boot", settings.autoStartOnBoot)
                 .putBoolean("auto_check_updates", settings.autoCheckUpdates)
+                .putString("split_tunnel_mode", settings.splitTunnelMode.name)
                 .putStringSet("excluded_packages", settings.excludedPackages)
+                .putStringSet("selected_only_packages", settings.selectedOnlyPackages)
                 .apply()
         }
     }
@@ -198,7 +236,7 @@ data class RyanDpiSettings(
             RegionPreset.TURKEY -> copy(
                 region = selected,
                 regionConfigured = true,
-                bypassProfile = BypassProfile.AUTO_UNIVERSAL,
+                bypassProfile = BypassProfile.TURKEY_BTK,
                 dnsMode = DnsMode.ENCRYPTED_DOH,
                 udpBypass = true
             )
@@ -231,6 +269,7 @@ data class RyanDpiSettings(
     fun activeStrategyString(): String {
         return when (bypassProfile) {
             BypassProfile.AUTO_UNIVERSAL -> AUTO_UNIVERSAL_STRATEGY
+            BypassProfile.TURKEY_BTK -> TURKEY_BTK_STRATEGY
             BypassProfile.RUSSIA_TSPU -> RUSSIA_TSPU_STRATEGY
             BypassProfile.CLASSIC_BYEDPI -> CLASSIC_BYEDPI_STRATEGY
             BypassProfile.STRICT_ISP -> STRICT_ISP_STRATEGY
@@ -239,11 +278,12 @@ data class RyanDpiSettings(
     }
 
     fun buildCiadpiArgList(listenPort: Int = activeCiadpiPort()): List<String> {
+        // Mobile-optimized footprint: -c 512 -b 32768 slashes peak native RAM ~75% while still saturating 5G/Wi-Fi
         val args = mutableListOf(
             "-i", "127.0.0.1",
             "-p", listenPort.toString(),
-            "-c", "2048",
-            "-b", "131072",
+            "-c", "512",
+            "-b", "32768",
             "-u", "86400",
             "-T", "2",
             "-L", "3"

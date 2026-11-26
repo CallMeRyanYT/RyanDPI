@@ -653,7 +653,8 @@
                                 <ComboBox x:Name="CmbProfile"
                                           Style="{StaticResource ModernComboBoxStyle}"
                                           SelectionChanged="CmbProfile_SelectionChanged">
-                                    <ComboBoxItem x:Name="ItemProfileAuto" Content="Auto Universal (7-Stage Global — Turkey, Russia &amp; Worldwide)" Tag="AutoUniversal"/>
+                                    <ComboBoxItem x:Name="ItemProfileAuto" Content="Auto Universal (7-Stage — Other Countries)" Tag="AutoUniversal"/>
+                                    <ComboBoxItem x:Name="ItemProfileTurkey" Content="Turkey BTK (Ultra-Lean 3-Stage — Lowest Latency)" Tag="TurkeyBtk"/>
                                     <ComboBoxItem x:Name="ItemProfileRussia" Content="Russia TSPU (YouTube, Discord, Instagram — First Packet)" Tag="RussiaTspu"/>
                                     <ComboBoxItem x:Name="ItemProfileClassic" Content="Classic Mode (Lightweight TLS Record Split)" Tag="ClassicByeDpi"/>
                                     <ComboBoxItem x:Name="ItemProfileStrict" Content="Strict ISP (Superonline / Mobile / Aggressive DPI)" Tag="StrictIsp"/>
@@ -966,7 +967,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,12,0">
                             <TextBlock x:Name="TxtAboutVersion"
-                                       Text="RyanDPI v3.0.0 Unbound — Global Zero-Lag DPI Bypass &amp; Split-Tunnel"
+                                       Text="RyanDPI v3.1.0 Unbound — Global Zero-Lag DPI Bypass &amp; Split-Tunnel"
                                        FontFamily="{StaticResource FontBold}"
                                        FontSize="12"
                                        TextWrapping="Wrap"

@@ -19,14 +19,18 @@ data class VpnUiState(
     val rxBytes: Long = 0L,
     val txBytesPerSec: Long = 0L,
     val rxBytesPerSec: Long = 0L,
+    val rxSpeedHistory: List<Long> = emptyList(),
+    val txSpeedHistory: List<Long> = emptyList(),
     val dnsQueries: Long = 0L,
     val dnsCacheHits: Long = 0L,
+    val networkLabel: String = "",
     val activeDnsMode: DnsMode = DnsMode.ENCRYPTED_DOH,
     val activeProfile: BypassProfile = BypassProfile.AUTO_UNIVERSAL,
     val errorMessage: String? = null
 )
 
 object VpnStateHolder {
+    private const val MAX_SPARKLINE_POINTS = 20
     private val _state = MutableStateFlow(VpnUiState())
     val state: StateFlow<VpnUiState> = _state.asStateFlow()
 
@@ -38,10 +42,11 @@ object VpnStateHolder {
         )
     }
 
-    fun setConnected(dnsMode: DnsMode, profile: BypassProfile) {
+    fun setConnected(dnsMode: DnsMode, profile: BypassProfile, networkLabel: String = "") {
         _state.value = VpnUiState(
             status = VpnStatus.CONNECTED,
             connectedSinceMs = System.currentTimeMillis(),
+            networkLabel = networkLabel,
             activeDnsMode = dnsMode,
             activeProfile = profile
         )
@@ -58,16 +63,32 @@ object VpnStateHolder {
         )
     }
 
-    fun updateStats(txBytes: Long, rxBytes: Long, dnsQueries: Long, dnsCacheHits: Long) {
+    fun updateNetworkLabel(label: String) {
+        _state.update { prev ->
+            if (prev.status != VpnStatus.CONNECTED || prev.networkLabel == label) prev
+            else prev.copy(networkLabel = label)
+        }
+    }
+
+    fun updateStats(
+        txBytes: Long,
+        rxBytes: Long,
+        txBytesPerSec: Long,
+        rxBytesPerSec: Long,
+        dnsQueries: Long,
+        dnsCacheHits: Long
+    ) {
         _state.update { prev ->
             if (prev.status != VpnStatus.CONNECTED) return@update prev
-            val dTx = (txBytes - prev.txBytes).coerceAtLeast(0L)
-            val dRx = (rxBytes - prev.rxBytes).coerceAtLeast(0L)
+            val nextRxHist = (prev.rxSpeedHistory + rxBytesPerSec).takeLast(MAX_SPARKLINE_POINTS)
+            val nextTxHist = (prev.txSpeedHistory + txBytesPerSec).takeLast(MAX_SPARKLINE_POINTS)
             prev.copy(
                 txBytes = txBytes,
                 rxBytes = rxBytes,
-                txBytesPerSec = dTx,
-                rxBytesPerSec = dRx,
+                txBytesPerSec = txBytesPerSec,
+                rxBytesPerSec = rxBytesPerSec,
+                rxSpeedHistory = nextRxHist,
+                txSpeedHistory = nextTxHist,
                 dnsQueries = dnsQueries,
                 dnsCacheHits = dnsCacheHits
             )

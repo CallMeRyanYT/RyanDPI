@@ -10,6 +10,7 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -17,6 +18,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -25,6 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ryandpi.android.engine.LogRepository
 import com.ryandpi.android.engine.RyanDpiSettings
 import com.ryandpi.android.engine.VpnStateHolder
@@ -90,6 +95,18 @@ class MainActivity : ComponentActivity() {
             var updateStatusMsg by remember { mutableStateOf<String?>(null) }
             var settingsDirtyWhileConnected by remember { mutableStateOf(false) }
             var installedApps by remember { mutableStateOf<List<InstalledAppItem>>(emptyList()) }
+            var isBatteryUnrestricted by remember { mutableStateOf(checkBatteryUnrestricted()) }
+
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val obs = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        isBatteryUnrestricted = checkBatteryUnrestricted()
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(obs)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+            }
 
             LaunchedEffect(settings.isDarkTheme) {
                 applySystemBars(settings.isDarkTheme)
@@ -118,6 +135,7 @@ class MainActivity : ComponentActivity() {
                     updateStatusMsg = updateStatusMsg,
                     settingsDirtyWhileConnected = settingsDirtyWhileConnected,
                     installedApps = installedApps,
+                    isBatteryUnrestricted = isBatteryUnrestricted,
                     onToggleConnection = {
                         when (vpnState.status) {
                             VpnStatus.CONNECTED, VpnStatus.CONNECTING -> {
@@ -217,6 +235,23 @@ class MainActivity : ComponentActivity() {
                         runCatching { startActivity(wirelessIntent) }
                             .onFailure { runCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) } }
                     },
+                    onRequestBatteryWhitelist = {
+                        runCatching {
+                            val intent = Intent(
+                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:$packageName")
+                            )
+                            startActivity(intent)
+                        }.onFailure {
+                            runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+                        }
+                    },
+                    onOpenSystemAlwaysOnVpn = {
+                        val strings = StringsRepository.forLanguage(settings.language)
+                        Toast.makeText(this, strings.systemAlwaysOnToast, Toast.LENGTH_LONG).show()
+                        runCatching { startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) }
+                            .onFailure { runCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) } }
+                    },
                     onCopyLogs = {
                         val strings = StringsRepository.forLanguage(settings.language)
                         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -241,6 +276,13 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun checkBatteryUnrestricted(): Boolean {
+        return runCatching {
+            val pm = getSystemService(PowerManager::class.java)
+            pm?.isIgnoringBatteryOptimizations(packageName) ?: false
+        }.getOrDefault(false)
     }
 
     private fun requestConnect() {

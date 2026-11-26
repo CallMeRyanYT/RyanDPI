@@ -16,7 +16,10 @@ import java.net.SocketAddress
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -35,8 +38,8 @@ class RyanDpiSocksGateway(
     private val dohResolver: DohDnsResolver
 ) {
     companion object {
-        private const val BUFFER_SIZE = 32 * 1024
-        private const val POOL_MAX_BUFFERS = 64
+        private const val BUFFER_SIZE = 16 * 1024
+        private const val POOL_MAX_BUFFERS = 24
         private const val VIRTUAL_DNS_IP = RyanDpiSettings.VIRTUAL_DNS_IPV4
     }
 
@@ -44,12 +47,16 @@ class RyanDpiSocksGateway(
     private var serverSocket: ServerSocket? = null
     private var acceptThread: Thread? = null
 
-    private val ioExecutor: ExecutorService = Executors.newCachedThreadPool { r ->
-        Thread(r, "ryandpi-io").apply { isDaemon = true }
-    }
-    private val dnsExecutor: ExecutorService = Executors.newFixedThreadPool(8) { r ->
-        Thread(r, "ryandpi-doh").apply { isDaemon = true }
-    }
+    // On-demand shrinking thread pools: 0 idle threads when phone is resting (minimal RAM & battery!)
+    private val ioExecutor: ExecutorService = ThreadPoolExecutor(
+        0, 96, 30L, TimeUnit.SECONDS, SynchronousQueue(),
+        { r -> Thread(r, "ryandpi-io").apply { isDaemon = true } },
+        ThreadPoolExecutor.CallerRunsPolicy()
+    )
+    private val dnsExecutor: ExecutorService = ThreadPoolExecutor(
+        0, 4, 30L, TimeUnit.SECONDS, LinkedBlockingQueue(),
+        { r -> Thread(r, "ryandpi-doh").apply { isDaemon = true } }
+    ).apply { allowCoreThreadTimeOut(true) }
 
     private val activeSockets = ConcurrentHashMap.newKeySet<Socket>()
     private val activeUdpSockets = ConcurrentHashMap.newKeySet<DatagramSocket>()
@@ -116,8 +123,9 @@ class RyanDpiSocksGateway(
 
     private fun configureSocket(s: Socket) {
         runCatching { s.tcpNoDelay = true }
-        runCatching { s.receiveBufferSize = 131072 }
-        runCatching { s.sendBufferSize = 131072 }
+        runCatching { s.soTimeout = 300_000 }
+        runCatching { s.receiveBufferSize = 65536 }
+        runCatching { s.sendBufferSize = 65536 }
     }
 
     private fun handleClient(client: Socket) {
@@ -331,8 +339,8 @@ class RyanDpiSocksGateway(
 
     private fun handleUdpAssociate(client: Socket, controlIn: DataInputStream, controlOut: OutputStream) {
         val localUdp = DatagramSocket(0, InetAddress.getByName("127.0.0.1")).apply {
-            runCatching { receiveBufferSize = 524288 }
-            runCatching { sendBufferSize = 524288 }
+            runCatching { receiveBufferSize = 262144 }
+            runCatching { sendBufferSize = 262144 }
         }
         activeUdpSockets.add(localUdp)
 
@@ -404,8 +412,8 @@ class RyanDpiSocksGateway(
                     val target = InetSocketAddress(resolvedIp, bndPort)
 
                     val upUdp = DatagramSocket(0, InetAddress.getByName("127.0.0.1")).apply {
-                        runCatching { receiveBufferSize = 524288 }
-                        runCatching { sendBufferSize = 524288 }
+                        runCatching { receiveBufferSize = 262144 }
+                        runCatching { sendBufferSize = 262144 }
                     }
                     activeSockets.add(ctrl)
                     activeUdpSockets.add(upUdp)
@@ -483,12 +491,11 @@ class RyanDpiSocksGateway(
                             }
                         }
                     } else {
-                        // Forward non-DNS UDP (Discord Voice, Roblox Game UDP, QUIC) to ciadpi
+                        // Zero-copy forward non-DNS UDP (Discord Voice, Roblox Game UDP, QUIC) to ciadpi
                         val relay = ensureUpstreamUdpRelay() ?: continue
                         val (upSock, upTarget) = relay
-                        val fwdData = buf.copyOfRange(0, len)
                         runCatching {
-                            upSock.send(DatagramPacket(fwdData, fwdData.size, upTarget))
+                            upSock.send(DatagramPacket(buf, 0, len, upTarget))
                         }
                     }
                 } catch (_: IOException) {

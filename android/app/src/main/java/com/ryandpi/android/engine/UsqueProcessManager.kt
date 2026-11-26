@@ -22,7 +22,10 @@ class UsqueProcessManager(private val context: Context) {
     fun resolveBinaryFile(): File = File(context.applicationInfo.nativeLibraryDir, "libusque.so")
     private fun resolveConfigFile(): File = File(context.filesDir, "usque-config.json")
 
-    fun start(listenPort: Int = RyanDpiSettings.USQUE_SOCKS_PORT): Result<Unit> {
+    fun start(
+        listenPort: Int = RyanDpiSettings.USQUE_SOCKS_PORT,
+        onUnexpectedExit: (() -> Unit)? = null
+    ): Result<Unit> {
         stop()
 
         val binary = resolveBinaryFile()
@@ -83,8 +86,13 @@ class UsqueProcessManager(private val context: Context) {
                             }
                         }
                     }
+                    runCatching { proc.waitFor() }
                 } catch (_: Exception) {
                     // Process stopped
+                } finally {
+                    if (running.get() && process === proc) {
+                        onUnexpectedExit?.invoke()
+                    }
                 }
             }, "ryandpi-usque-log").apply {
                 isDaemon = true

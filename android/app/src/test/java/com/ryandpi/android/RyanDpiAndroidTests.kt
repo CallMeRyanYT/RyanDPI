@@ -311,6 +311,11 @@ class RyanDpiAndroidTests {
         assertEquals("ar", RyanDpiSettings.normalizeLanguage("ar-EG"))
         assertEquals("en", RyanDpiSettings.normalizeLanguage("en-US"))
 
+        val trPreset = RyanDpiSettings().withRegionPreset(RegionPreset.TURKEY)
+        assertEquals(BypassProfile.TURKEY_BTK, trPreset.bypassProfile)
+        assertTrue(trPreset.buildCiadpiArgList().contains("512"))
+        assertTrue(trPreset.buildCiadpiArgList().contains("32768"))
+
         val ruPreset = RyanDpiSettings().withRegionPreset(RegionPreset.RUSSIA)
         assertEquals(BypassProfile.RUSSIA_TSPU, ruPreset.bypassProfile)
         assertTrue(ruPreset.buildCiadpiArgList().contains("--fake-sni"))
@@ -318,6 +323,10 @@ class RyanDpiAndroidTests {
         val brPreset = RyanDpiSettings().withRegionPreset(RegionPreset.BRAZIL)
         assertEquals(RegionPreset.BRAZIL, brPreset.region)
         assertEquals(BrazilTunnelMode.BUILTIN_WARP_MASQUE, brPreset.brazilTunnel)
+
+        assertEquals("512 B/s", com.ryandpi.android.service.RyanDpiVpnService.formatSpeed(512L))
+        assertEquals("2 KB/s", com.ryandpi.android.service.RyanDpiVpnService.formatSpeed(2048L))
+        assertEquals("1.5 MB/s", com.ryandpi.android.service.RyanDpiVpnService.formatSpeed(1572864L))
 
         val ep = RyanDpiSettings.parseSocksEndpoint("socks5://1.2.3.4:1080")
         assertNotNull(ep)

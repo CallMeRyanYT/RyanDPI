@@ -24,7 +24,11 @@ class CiadpiProcessManager(private val context: Context) {
         return File(nativeDir, "libciadpi.so")
     }
 
-    fun start(settings: RyanDpiSettings, listenPort: Int): Result<Unit> {
+    fun start(
+        settings: RyanDpiSettings,
+        listenPort: Int,
+        onUnexpectedExit: (() -> Unit)? = null
+    ): Result<Unit> {
         stop()
 
         val binary = resolveBinaryFile()
@@ -61,8 +65,13 @@ class CiadpiProcessManager(private val context: Context) {
                             }
                         }
                     }
+                    runCatching { proc.waitFor() }
                 } catch (_: Exception) {
                     // Process stopped
+                } finally {
+                    if (running.get() && process === proc) {
+                        onUnexpectedExit?.invoke()
+                    }
                 }
             }, "ryandpi-ciadpi-log").apply {
                 isDaemon = true
