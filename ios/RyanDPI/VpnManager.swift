@@ -145,12 +145,12 @@ final class RyanDpiController: ObservableObject {
             #if RYANDPI_FREE_EDITION
             if isConnected {
                 cfg.connectionProxyDictionary = [
-                    kCFNetworkProxiesHTTPEnable as String: true,
+                    kCFNetworkProxiesHTTPEnable as String: 1,
                     kCFNetworkProxiesHTTPProxy as String: "127.0.0.1",
                     kCFNetworkProxiesHTTPPort as String: RyanDpiSettings.localHttpProxyPort,
-                    kCFNetworkProxiesHTTPSEnable as String: true,
-                    kCFNetworkProxiesHTTPSProxy as String: "127.0.0.1",
-                    kCFNetworkProxiesHTTPSPort as String: RyanDpiSettings.localHttpProxyPort
+                    "HTTPSEnable": 1,
+                    "HTTPSProxy": "127.0.0.1",
+                    "HTTPSPort": RyanDpiSettings.localHttpProxyPort
                 ]
             }
             #endif
