@@ -1,0 +1,41 @@
+name: RyanDPIFree
+options:
+  bundleIdPrefix: com.ryandpi
+  deploymentTarget:
+    iOS: "15.0"
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "3.2.0"
+    CURRENT_PROJECT_VERSION: "320"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    ENABLE_BITCODE: "NO"
+
+targets:
+  RyanDPI:
+    type: application
+    platform: iOS
+    sources:
+      - path: RyanDPI
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ryandpi.ios.free
+        PRODUCT_NAME: RyanDPI
+        INFOPLIST_FILE: RyanDPI/Info.plist
+        CODE_SIGN_ENTITLEMENTS: RyanDPI/RyanDPI-Free.entitlements
+        SWIFT_OBJC_BRIDGING_HEADER: Native/RyanDPI-Free-Bridging-Header.h
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "RYANDPI_FREE_EDITION"
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/Native"
+          - "$(SRCROOT)/Vendor/include"
+        LIBRARY_SEARCH_PATHS:
+          - "$(SRCROOT)/Vendor/lib"
+        OTHER_LDFLAGS:
+          - "-lciadpi-ios"

@@ -79,16 +79,19 @@ data class RyanDpiSettings(
 
         val SUPPORTED_LANGUAGES = listOf("en", "tr", "pt", "ru", "fa", "id", "zh", "ar")
 
-        // 7-stage Global Zero-Lag strategy (matches RyanDPI Windows v3.1.7 Unbound):
-        // Stage 1 (--tlsrec 1+s) gives 0ms added lag in Turkey / light DPI, while Stages 2-6
-        // auto-adapt for Russia TSPU (YouTube/googlevideo, Discord, Instagram), Chrome Post-Quantum ML-KEM/Kyber & mobile ISPs.
+        // 10-stage Global Zero-Lag strategy (matches RyanDPI Windows & iOS v3.2.0 Unbound):
+        // Dedicated --hosts :googlevideo.com fast-track FIRST for Russia YouTube videos, followed by 0ms Stage 1
+        // (--tlsrec 1+s) + proven v3.1.6 Russia Discord/YouTube stages (--split 2 --disorder -1+s & --oob 1+s).
         const val AUTO_UNIVERSAL_STRATEGY =
-            "--tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --disorder 1+s --tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s --split 1+s " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec 3+s --mod-http=h,d " +
+            "--hosts :googlevideo.com --tlsrec 1+s --tlsrec -5+se --split 2 --disorder 1+s --split 4:14:3+s " +
+                "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --split 2 --disoob 1+s --tlsrec -5+se --split 4:14:3+s " +
+                "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --fake -1 --ttl 3 --fake-sni www.wikipedia.org --fake-tls-mod=rand --tlsrec -5+se --disorder 1+s --split 4:14:3+s " +
+                "--auto=none --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 3+s --tlsrec -5+se " +
+                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err"
 
         // Ultra-lean 3-stage Turkey BTK strategy: 0ms Stage 1 + Superonline fallbacks (zero wasted Russia/Iran retries)
@@ -99,22 +102,25 @@ data class RyanDpiSettings(
                 "--auto=torst,redirect,ssl_err"
 
         const val RUSSIA_TSPU_STRATEGY =
-            "--disorder 1+s --tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --split 1+s --tlsrec 1+s --oob 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --split 1+s --disorder 3+s " +
-                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec 3+s --mod-http=h,d " +
+            "--hosts :googlevideo.com --tlsrec 1+s --tlsrec -5+se --split 2 --disorder 1+s --split 4:14:3+s " +
+                "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --split 2 --disoob 1+s --tlsrec -5+se --split 4:14:3+s " +
+                "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --fake -1 --ttl 3 --fake-sni www.wikipedia.org --fake-tls-mod=rand --tlsrec -5+se --disorder 1+s --split 4:14:3+s " +
+                "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --fake -1 --ttl 7 --fake-sni www.wikipedia.org --fake-tls-mod=rand --tlsrec -5+se --disorder 1+s --split 4:14:3+s " +
+                "--auto=none --split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
+                "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 3+s --tlsrec -5+se " +
+                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec -5+se --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err"
 
         const val CLASSIC_BYEDPI_STRATEGY =
             "--tlsrec 1+s --mod-http=h,d --auto=torst --split 1 --disorder 3+s"
 
         const val STRICT_ISP_STRATEGY =
-            "--disorder 1+s --tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+            "--split 2 --disorder -1+s --tlsrec -5+se --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec -5+se " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 3+s --tlsrec -5+se " +
+                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec -5+se --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err"
 
         private const val PREFS_NAME = "ryandpi_settings"

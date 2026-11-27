@@ -1,4 +1,4 @@
-# RyanDPI v3.1.7 — Unbound
+# RyanDPI v3.2.0 — Unbound
 
 [English](README.md) | [Türkçe](README.tr.md) | [Português (Brasil)](README.pt-BR.md) | **Русский** | [فارسی](README.fa.md) | [Bahasa Indonesia](README.id.md) | [简体中文](README.zh.md) | [العربية](README.ar.md)
 
@@ -6,11 +6,14 @@
 
 ---
 
-## Скачать и Быстрый Старт (`v3.1.7 — Unbound`)
+## Скачать и Быстрый Старт (`v3.2.0 — Unbound`)
 
-[![Скачать Windows Setup](https://img.shields.io/badge/Скачать-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Setup-Windows-3.1.7.exe)
-[![Скачать Portable ZIP](https://img.shields.io/badge/Скачать-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Portable-Windows-3.1.7.zip)
-[![Скачать Android APK](https://img.shields.io/badge/Скачать-Android%20APK%20(v3.1.7)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Android-3.1.7.apk)
+[![Скачать Windows Setup](https://img.shields.io/badge/Скачать-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Setup-Windows-3.2.0.exe)
+[![Скачать Portable ZIP](https://img.shields.io/badge/Скачать-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Portable-Windows-3.2.0.zip)
+[![Скачать Android APK](https://img.shields.io/badge/Скачать-Android%20APK%20(v3.2.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Android-3.2.0.apk)
+[![Download iOS Full VPN IPA](https://img.shields.io/badge/Download-iOS%20Full%20VPN%20(.ipa)-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-3.2.0.ipa)
+[![Download iOS Free Apple ID IPA](https://img.shields.io/badge/Download-iOS%20Free%20Apple%20ID%20(.ipa)-5856D6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-FreeAppleID-3.2.0.ipa)
+[![Download iOS Encrypted DNS Profile](https://img.shields.io/badge/Download-iOS%20Encrypted%20DNS%20(.mobileconfig)-00B8D4?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-EncryptedDNS.mobileconfig)
 
 ---
 
@@ -28,12 +31,15 @@
 ## Установка и Запуск
 
 ### Windows (10 и 11 x64)
-1. Скачайте и запустите **[RyanDPI-Setup-Windows-3.1.7.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Setup-Windows-3.1.7.exe)** (или распакуйте [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Portable-Windows-3.1.7.zip)).
+1. Скачайте и запустите **[RyanDPI-Setup-Windows-3.2.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Setup-Windows-3.2.0.exe)** (или распакуйте [Portable ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Portable-Windows-3.2.0.zip)).
 2. Выберите режим **Россия — Полный обход ТСПУ** и язык **`RU`** в верхней панели.
 3. Нажмите **«Установить и включить RyanDPI»**, затем **«Тест»**, чтобы проверить YouTube, Discord, Instagram и Roblox.
 
 ### Android (Android 10–16, Без Root)
-1. Скачайте **[RyanDPI-Android-3.1.7.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Android-3.1.7.apk)** и установите на телефон.
+1. Скачайте **[RyanDPI-Android-3.2.0.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Android-3.2.0.apk)
+[![Download iOS Full VPN IPA](https://img.shields.io/badge/Download-iOS%20Full%20VPN%20(.ipa)-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-3.2.0.ipa)
+[![Download iOS Free Apple ID IPA](https://img.shields.io/badge/Download-iOS%20Free%20Apple%20ID%20(.ipa)-5856D6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-FreeAppleID-3.2.0.ipa)
+[![Download iOS Encrypted DNS Profile](https://img.shields.io/badge/Download-iOS%20Encrypted%20DNS%20(.mobileconfig)-00B8D4?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-EncryptedDNS.mobileconfig)** и установите на телефон.
 2. Выберите регион **Россия — ТСПУ**, нажмите **«Подключить и открыть»** и подтвердите локальное VPN-разрешение Android *(трафик не уходит на удалённые VPN-серверы!)*.
 3. Добавьте плитку **RyanDPI** в шторку быстрых настроек для включения в 1 нажатие.
 

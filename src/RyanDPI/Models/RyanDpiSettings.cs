@@ -39,19 +39,22 @@ namespace RyanDPI.Models
         public const int DefaultSocksPort = 1080;
         public const int UsqueSocksPort = 1082;
 
-        // 7-stage Global Zero-Lag strategy (Windows & Android parity):
-        // Stage 1 (--tlsrec 1+s) has 0ms added latency & unlocks Turkey / light DPI on packet 1.
-        // Stages 2-6 automatically adapt across Russia TSPU (YouTube/googlevideo, Discord, Instagram),
-        // Chrome/Edge TLS 1.3 Post-Quantum ML-KEM/Kyber ClientHello, Superonline, mobile networks,
-        // and strict global DPI firewalls; Stage 7 falls back cleanly to passthrough.
+        // 10-stage Global Zero-Lag strategy (Windows, Android & iOS parity):
+        // - Dedicated --hosts :googlevideo.com fast-track FIRST: double TLS record split (1+s & -5+se right inside
+        //   google|video.com) + byte-2 split + disorder + 3-byte SNI multi-split (4:14:3+s) for YouTube videos.
+        // - General --auto=none chain: Stage 1 (--tlsrec 1+s) gives 0ms latency in Turkey / light DPI, followed
+        //   by the proven v3.1.6 Russia Discord/YouTube chain (--split 2 --disorder -1+s --tlsrec 1+s & --oob 1+s).
         // Per-IP 24h caching (-u 86400 -L 3) locks onto the fastest working stage with zero extra lag!
         public const string AutoUniversalStrategy =
-            "--tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --disorder 1+s --tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s --split 1+s " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec 3+s --mod-http=h,d " +
+            "--hosts :googlevideo.com --tlsrec 1+s --tlsrec -5+se --split 2 --disorder 1+s --split 4:14:3+s " +
+            "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --split 2 --disoob 1+s --tlsrec -5+se --split 4:14:3+s " +
+            "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --fake -1 --ttl 3 --fake-sni www.wikipedia.org --fake-tls-mod=rand --tlsrec -5+se --disorder 1+s --split 4:14:3+s " +
+            "--auto=none --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 3+s --tlsrec -5+se " +
+            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err";
 
         // Ultra-lean 3-stage Turkey BTK chain: 0ms Stage 1 (--tlsrec 1+s) + Superonline split/OOB fallbacks.
@@ -62,26 +65,35 @@ namespace RyanDPI.Models
             "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
             "--auto=torst,redirect,ssl_err";
 
-        // Russia TSPU-first chain tuned for browser YouTube (youtube.com + googlevideo.com), Discord, Instagram & Roblox:
-        // Uses +s SNI-anchored disorder/disoob/split/tlsrec (works even with Chrome's 1.8KB Post-Quantum ML-KEM/Kyber ClientHello!)
-        // + randomized fake TLS with neutral non-Google SNI at TTL 8 & TTL 5, paired with automatic browser QUIC UDP/443 fallback!
+        // Russia TSPU-first chain tuned for BOTH Discord (proven v3.1.6 --split 2 --disorder -1+s --tlsrec 1+s)
+        // AND YouTube video streams (*.googlevideo.com GGC):
+        // - Dedicated --hosts :googlevideo.com fast-track FIRST (zero impact on Discord/Roblox/Instagram!):
+        //   double TLS record split (1+s & -5+se right inside google|video.com) + byte-2 split + disorder +
+        //   3-byte SNI multi-split (4:14:3+s) across the full 35-45 char rr*---sn-*.googlevideo.com hostname,
+        //   with safe OOB + TTL 3 + TTL 7 fallbacks.
+        // - General Russia TSPU chain (--auto=none): restores the exact v3.1.6 Discord-verified stages FIRST
+        //   (--split 2 --disorder -1+s --tlsrec 1+s, --oob 1+s --tlsrec 1+s, --tlsrec 1+s --split 1),
+        //   paired with IPv4+IPv6 ProxiFyre routing and automatic browser QUIC UDP/443 -> TCP/443 fallback!
         public const string RussiaTspuStrategy =
-            "--disorder 1+s --tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --split 1+s --tlsrec 1+s --oob 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --split 1+s --disorder 3+s " +
-            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec 3+s --mod-http=h,d " +
+            "--hosts :googlevideo.com --tlsrec 1+s --tlsrec -5+se --split 2 --disorder 1+s --split 4:14:3+s " +
+            "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --split 2 --disoob 1+s --tlsrec -5+se --split 4:14:3+s " +
+            "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --fake -1 --ttl 3 --fake-sni www.wikipedia.org --fake-tls-mod=rand --tlsrec -5+se --disorder 1+s --split 4:14:3+s " +
+            "--auto=torst,redirect,ssl_err --hosts :googlevideo.com --fake -1 --ttl 7 --fake-sni www.wikipedia.org --fake-tls-mod=rand --tlsrec -5+se --disorder 1+s --split 4:14:3+s " +
+            "--auto=none --split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
+            "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 3+s --tlsrec -5+se " +
+            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec -5+se --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err";
 
         public const string ClassicByeDpiStrategy =
             "--tlsrec 1+s --mod-http=h,d --auto=torst --split 1 --disorder 3+s";
 
         public const string StrictIspStrategy =
-            "--disorder 1+s --tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+            "--split 2 --disorder -1+s --tlsrec -5+se --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec -5+se " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 3+s --tlsrec -5+se " +
+            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec -5+se --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err";
 
         public bool IsDarkTheme { get; set; } = true;

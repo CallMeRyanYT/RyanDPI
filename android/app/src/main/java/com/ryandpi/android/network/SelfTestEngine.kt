@@ -135,6 +135,7 @@ object SelfTestEngine {
                     async(Dispatchers.IO) { checkEncryptedDns(dohResolver, s, isRussia = true) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "discord", "Discord", "https://discord.com/api/v10/gateway", s, useGet = true) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "youtube", "YouTube", "https://www.youtube.com/", s) },
+                    async(Dispatchers.IO) { checkEndpoint(testClient, "yt_video", "YouTube Video (GGC)", "https://redirector.googlevideo.com/report_mapping", s, useGet = true) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "instagram", "Instagram", "https://www.instagram.com/", s) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_app", s.testRobloxApp, "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", s, useGet = true) },
                     async(Dispatchers.IO) { checkEndpoint(testClient, "roblox_web", s.testRobloxWeb, "https://www.roblox.com/", s) },

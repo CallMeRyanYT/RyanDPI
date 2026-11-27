@@ -17,6 +17,13 @@ android/signing.properties
 *.apk
 *.aab
 
+# iOS Native Build & Archives
+ios/Vendor/
+ios/.native_build/
+ios/build/
+ios/*.xcodeproj/
+*.ipa
+
 # IDE
 .vs/
 .vscode/

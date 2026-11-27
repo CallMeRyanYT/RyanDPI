@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# RyanDPI v3.1.7 — Unbound
+# RyanDPI v3.2.0 — Unbound
 
 [English](README.md) | [Türkçe](README.tr.md) | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md) | [فارسی](README.fa.md) | [Bahasa Indonesia](README.id.md) | [简体中文](README.zh.md) | **العربية**
 
@@ -8,11 +8,14 @@
 
 ---
 
-## التحميل والبدء السريع (`v3.1.7 — Unbound`)
+## التحميل والبدء السريع (`v3.2.0 — Unbound`)
 
-[![تحميل مثبت ويندوز](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Setup-Windows-3.1.7.exe)
-[![تحميل النسخة المحمولة ZIP](https://img.shields.io/badge/Download-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Portable-Windows-3.1.7.zip)
-[![تحميل تطبيق أندرويد APK](https://img.shields.io/badge/Download-Android%20APK%20(v3.1.7)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Android-3.1.7.apk)
+[![تحميل مثبت ويندوز](https://img.shields.io/badge/Download-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Setup-Windows-3.2.0.exe)
+[![تحميل النسخة المحمولة ZIP](https://img.shields.io/badge/Download-Windows%20Portable%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Portable-Windows-3.2.0.zip)
+[![تحميل تطبيق أندرويد APK](https://img.shields.io/badge/Download-Android%20APK%20(v3.2.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Android-3.2.0.apk)
+[![Download iOS Full VPN IPA](https://img.shields.io/badge/Download-iOS%20Full%20VPN%20(.ipa)-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-3.2.0.ipa)
+[![Download iOS Free Apple ID IPA](https://img.shields.io/badge/Download-iOS%20Free%20Apple%20ID%20(.ipa)-5856D6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-FreeAppleID-3.2.0.ipa)
+[![Download iOS Encrypted DNS Profile](https://img.shields.io/badge/Download-iOS%20Encrypted%20DNS%20(.mobileconfig)-00B8D4?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-EncryptedDNS.mobileconfig)
 
 ---
 
@@ -30,12 +33,15 @@
 ## التشغيل السريع
 
 ### ويندوز (10 و 11 نواة 64-بت)
-1. حمّل وشغّل **[RyanDPI-Setup-Windows-3.1.7.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Setup-Windows-3.1.7.exe)** (أو استخرج [النسخة المحمولة ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Portable-Windows-3.1.7.zip)).
+1. حمّل وشغّل **[RyanDPI-Setup-Windows-3.2.0.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Setup-Windows-3.2.0.exe)** (أو استخرج [النسخة المحمولة ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Portable-Windows-3.2.0.zip)).
 2. اختر الوضع **العالمي الشامل** عند التشغيل الأول، واضغط على زر اللغة بالأعلى لاختيار **`AR` العربية**.
 3. اضغط **«تثبيت وتفعيل RyanDPI»** ثم **«بدء الفحص»** للتحقق من الفتح والبينج المباشر.
 
 ### أندرويد (أندرويد 10–16، بدون روت)
-1. حمّل وثبّت **[RyanDPI-Android-3.1.7.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Android-3.1.7.apk)**.
+1. حمّل وثبّت **[RyanDPI-Android-3.2.0.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-Android-3.2.0.apk)
+[![Download iOS Full VPN IPA](https://img.shields.io/badge/Download-iOS%20Full%20VPN%20(.ipa)-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-3.2.0.ipa)
+[![Download iOS Free Apple ID IPA](https://img.shields.io/badge/Download-iOS%20Free%20Apple%20ID%20(.ipa)-5856D6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-FreeAppleID-3.2.0.ipa)
+[![Download iOS Encrypted DNS Profile](https://img.shields.io/badge/Download-iOS%20Encrypted%20DNS%20(.mobileconfig)-00B8D4?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.2.0/RyanDPI-iOS-EncryptedDNS.mobileconfig)**.
 2. اختر منطقتك واضغط **«اتصال وفتح الحجب»** ووافق على إذن VPN المحلي *(يعمل بالكامل على جهازك بدون خادم VPN خارجي!)*.
 
 ---

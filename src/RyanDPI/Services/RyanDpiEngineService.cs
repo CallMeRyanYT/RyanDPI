@@ -923,7 +923,8 @@ namespace RyanDPI.Services
                 {
                     (LocalizationService.T("SelfTest_Discord"), "https://discord.com/api/v10/gateway", HttpMethod.Get),
                     (LocalizationService.T("SelfTest_YouTube"), "https://www.youtube.com/", HttpMethod.Head),
-                    ("YouTube Video CDN", "https://i.ytimg.com/generate_204", HttpMethod.Get),
+                    ("YouTube Video (GGC)", "https://redirector.googlevideo.com/report_mapping", HttpMethod.Get),
+                    ("YouTube Thumbnails", "https://i.ytimg.com/generate_204", HttpMethod.Get),
                     (LocalizationService.T("SelfTest_Instagram"), "https://www.instagram.com/", HttpMethod.Head),
                     (LocalizationService.T("SelfTest_RobloxApp"), "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", HttpMethod.Get),
                     (LocalizationService.T("SelfTest_DirectBaseline"), "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get)
@@ -1943,7 +1944,9 @@ $evts | Where-Object {
                     Password = pass,
                     SupportedProtocols = settings.BrazilIncludeUdp
                         ? new List<string> { "TCP", "UDP" }
-                        : new List<string> { "TCP" }
+                        : new List<string> { "TCP" },
+                    // Intercept BOTH IPv4 and IPv6 so Discord never leaks over ISP IPv6
+                    SupportedAddressFamilies = new List<string> { "IPv4", "IPv6" }
                 });
             }
             else
@@ -1958,7 +1961,10 @@ $evts | Where-Object {
                     // unlocks EVERY app (Discord, Roblox Studio, Roblox Player, YouTube, browsers, etc.)
                     AppNames = new List<string> { "" },
                     Socks5ProxyEndpoint = $"127.0.0.1:{RyanDpiSettings.DefaultSocksPort}",
-                    SupportedProtocols = protocols
+                    SupportedProtocols = protocols,
+                    // CRITICAL: Intercept BOTH IPv4 and IPv6! Without "IPv6", ProxiFyre defaults to IPv4-only
+                    // and dual-stack ISPs route *.googlevideo.com / youtube.com over IPv6 straight into TSPU!
+                    SupportedAddressFamilies = new List<string> { "IPv4", "IPv6" }
                 });
             }
 
@@ -2791,6 +2797,9 @@ if ($networkChanged) {{
 
             [JsonPropertyName("supportedProtocols")]
             public List<string> SupportedProtocols { get; set; } = new();
+
+            [JsonPropertyName("supportedAddressFamilies")]
+            public List<string>? SupportedAddressFamilies { get; set; }
         }
     }
 }

@@ -1,0 +1,92 @@
+name: Build RyanDPI iOS (.ipa)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (e.g. 3.2.0)"
+        required: false
+        default: "3.2.0"
+  push:
+    branches: [ main ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-ios.yml'
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer 2>/dev/null || xcode-select -p
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Compile native iOS libraries (libciadpi-ios.a + libhev-socks5-tunnel-ios.a) & run Darwin preset test
+        run: |
+          chmod +x ios/scripts/build_native_libs.sh
+          ./ios/scripts/build_native_libs.sh
+
+      - name: Build Full System-Wide VPN Edition (.ipa)
+        working-directory: ios
+        run: |
+          xcodegen generate --spec project.yml
+          xcodebuild -project RyanDPI.xcodeproj \
+            -scheme RyanDPI \
+            -configuration Release \
+            -sdk iphoneos \
+            -arch arm64 \
+            -derivedDataPath build/full \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+          rm -rf build/ipa-full
+          mkdir -p build/ipa-full/Payload
+          cp -R build/full/Build/Products/Release-iphoneos/RyanDPI.app build/ipa-full/Payload/
+          # Verify embedded PacketTunnel extension and arm64 Mach-O slices
+          test -d build/ipa-full/Payload/RyanDPI.app/PlugIns/PacketTunnel.appex
+          lipo -info build/ipa-full/Payload/RyanDPI.app/RyanDPI
+          lipo -info build/ipa-full/Payload/RyanDPI.app/PlugIns/PacketTunnel.appex/PacketTunnel
+          (cd build/ipa-full && zip -qry "../RyanDPI-iOS-${{ inputs.version || '3.2.0' }}.ipa" Payload)
+          ls -lh "build/RyanDPI-iOS-${{ inputs.version || '3.2.0' }}.ipa"
+
+      - name: Build Free Apple ID Local Proxy Edition (.ipa)
+        working-directory: ios
+        run: |
+          xcodegen generate --spec project-free.yml
+          xcodebuild -project RyanDPIFree.xcodeproj \
+            -scheme RyanDPI \
+            -configuration Release \
+            -sdk iphoneos \
+            -arch arm64 \
+            -derivedDataPath build/free \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+          rm -rf build/ipa-free
+          mkdir -p build/ipa-free/Payload
+          cp -R build/free/Build/Products/Release-iphoneos/RyanDPI.app build/ipa-free/Payload/
+          # Verify Free Edition has NO NetworkExtension PlugIns (100% Free Apple ID AltStore/Sideloadly compatible!)
+          test ! -d build/ipa-free/Payload/RyanDPI.app/PlugIns/PacketTunnel.appex
+          lipo -info build/ipa-free/Payload/RyanDPI.app/RyanDPI
+          (cd build/ipa-free && zip -qry "../RyanDPI-iOS-FreeAppleID-${{ inputs.version || '3.2.0' }}.ipa" Payload)
+          ls -lh "build/RyanDPI-iOS-FreeAppleID-${{ inputs.version || '3.2.0' }}.ipa"
+
+      - name: Upload iOS Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ryandpi-ios-ipas
+          path: |
+            ios/build/RyanDPI-iOS-*.ipa
+            ios/Profiles/RyanDPI-iOS-EncryptedDNS.mobileconfig
+          retention-days: 14
