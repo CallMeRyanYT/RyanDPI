@@ -967,7 +967,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,12,0">
                             <TextBlock x:Name="TxtAboutVersion"
-                                       Text="RyanDPI v3.1.5 Unbound — Global Zero-Lag DPI Bypass &amp; Split-Tunnel"
+                                       Text="RyanDPI v3.1.6 Unbound — Global Zero-Lag DPI Bypass &amp; Split-Tunnel"
                                        FontFamily="{StaticResource FontBold}"
                                        FontSize="12"
                                        TextWrapping="Wrap"

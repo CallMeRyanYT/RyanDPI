@@ -359,11 +359,22 @@ namespace RyanDPI.Services
 
                     var serviceRunning = await WaitForServiceRunningAsync(EngineServiceName, 8000);
                     var portReady = serviceRunning && await WaitForLocalSocksPortAsync(settings.ActiveLocalEnginePort, settings.UsesBuiltInUsqueService ? 10000 : 5000);
+                    if (portReady && settings.UsesBuiltInUsqueService)
+                    {
+                        // Wait briefly for usque's WARP MASQUE tunnel (port 1083 behind the 1082 UDP-fix bridge) to actually come online
+                        var tunnelReady = await WaitForUsqueTunnelReadyAsync(settings.ActiveLocalEnginePort, 15000);
+                        if (!tunnelReady)
+                        {
+                            LogService.Warn("Brazil WARP MASQUE tunnel did not complete handshake within 15s (HTTP/2 fallback will keep retrying in background).");
+                            LogUsqueTail();
+                        }
+                    }
                     if (!portReady)
                     {
                         var qcEng = CommandRunner.Run("sc.exe", $"qc {EngineServiceName}", 8000);
                         LogService.Error($"RyanDPI engine failed verification (serviceRunning={serviceRunning}, port=127.0.0.1:{settings.ActiveLocalEnginePort}, scExit={engStart?.ExitCode}).");
                         LogService.Warn($"[Engine qc] {CollapseWhitespace(qcEng.CombinedOutput)}");
+                        if (settings.UsesBuiltInUsqueService) LogUsqueTail();
                         return new OperationResult
                         {
                             Success = false,
@@ -440,6 +451,9 @@ namespace RyanDPI.Services
                         LogService.Info("Automatic ProxiFyreService self-repair succeeded!");
                     }
 
+                    // Ensure C:\ has BUILTIN\Users Read & Execute so Electron/Chromium apps (Discord) never fail to launch
+                    EnsureSystemDriveUsersReadExecute();
+
                     LogService.Info("RyanDPI services are now running.");
                     return new OperationResult { Success = true, Message = LocalizationService.T("Msg_Started") };
                 }
@@ -495,13 +509,14 @@ namespace RyanDPI.Services
                 {
                     ServiceControlHelper.StopService(RouterServiceName);
                     ServiceControlHelper.StopService(EngineServiceName);
+                    KillEngineProcesses(includeDnsCrypt: false);
 
-                    // Ensure usque binaries are staged if switching to Brazil Built-in WARP MASQUE
-                    if (settings.UsesBuiltInUsqueService && (!File.Exists(EngineUsqueExe) || !File.Exists(EngineServiceHostExe)))
+                    // Always keep usque + RyanDPI service host binaries up to date when Brazil Built-in WARP MASQUE is enabled
+                    if (settings.UsesBuiltInUsqueService)
                     {
                         var srcUsque = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "res", "usque", "usque.exe");
                         Directory.CreateDirectory(EngineUsqueDir);
-                        if (File.Exists(srcUsque))
+                        if (File.Exists(srcUsque) && !File.Exists(EngineUsqueExe))
                         {
                             File.Copy(srcUsque, EngineUsqueExe, overwrite: true);
                         }
@@ -851,6 +866,10 @@ namespace RyanDPI.Services
                     ProbeHttpEndpointAsync(directHttp, LocalizationService.T("SelfTest_DirectGameBaseline"), "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get));
 
                 results.AddRange(brChecks);
+                if (settings.UsesBuiltInUsqueService && results.Any(r => !r.Passed))
+                {
+                    LogUsqueTail();
+                }
                 return results;
             }
 
@@ -1570,9 +1589,11 @@ try {{
                         return r;
                     }
 
-                    // Always ensure SYSTEM + Administrators keep full control on rootDrive
+                    // Always ensure SYSTEM + Administrators keep full control and Users keep Read & Execute on rootDrive
+                    // (Chromium/Electron sandboxes such as Discord require BUILTIN\Users RX on C:\ to launch cleanly!)
                     RunRootIcacls("/grant \"*S-1-5-18:(OI)(CI)F\"");
                     RunRootIcacls("/grant \"*S-1-5-32-544:(OI)(CI)F\"");
+                    RunRootIcacls("/grant \"*S-1-5-32-545:(OI)(CI)RX\"");
 
                     foreach (var sid in dangerousNonTrustedSids)
                     {
@@ -1846,7 +1867,20 @@ $evts | Where-Object {
                 DnsService.DnsCryptServiceName,
                 "dnscrypt-proxy.exe",
                 EngineDnsCryptExe,
-                "System"
+                "System",
+                // Third-party VPN coexistence exclusions (prevent routing loops if Proton VPN / WireGuard / WARP / Tailscale is installed or active)
+                "ProtonVPN",
+                "ProtonVPNService",
+                "ProtonVPN.Client",
+                "ProtonVPN.WireGuardService",
+                "wireguard",
+                "openvpn",
+                "warp-svc",
+                "mullvad-daemon",
+                "nordvpn-service",
+                "tailscaled",
+                "Tailscale",
+                "zerotier-one_x64"
             };
 
             foreach (var userApp in settings.ExcludedApps)
@@ -1867,7 +1901,15 @@ $evts | Where-Object {
                 // Routes ONLY Discord (+ optional browsers for Discord Web) through the Geo-Unblock
                 // SOCKS5 tunnel, leaving 100% of games (Valorant, CS2, Roblox, Steam, etc.) completely
                 // direct at 0ms extra ping!
-                var brApps = new List<string> { "Discord", "DiscordPTB", "DiscordCanary", "Update" };
+                var brApps = new List<string>
+                {
+                    "Discord",
+                    "DiscordPTB",
+                    "DiscordCanary",
+                    @"Discord\Update.exe",
+                    @"DiscordPTB\Update.exe",
+                    @"DiscordCanary\Update.exe"
+                };
                 if (settings.BrazilIncludeBrowsers)
                 {
                     brApps.AddRange(new[] { "chrome", "msedge", "firefox", "brave", "opera" });
@@ -2261,6 +2303,7 @@ $evts | Where-Object {
                 {
                     ("RyanDPI Engine", EngineCiadpiExe),
                     ("RyanDPI Geo Engine", EngineUsqueExe),
+                    ("RyanDPI Geo Bridge", EngineServiceHostExe),
                     ("RyanDPI Router", ActiveProxiFyreExe),
                     ("RyanDPI Encrypted DNS", EngineDnsCryptExe)
                 };
@@ -2293,6 +2336,7 @@ $evts | Where-Object {
             {
                 "RyanDPI Engine TCP-In", "RyanDPI Engine UDP-In", "RyanDPI Engine In", "RyanDPI Engine Out",
                 "RyanDPI Geo Engine TCP-In", "RyanDPI Geo Engine UDP-In", "RyanDPI Geo Engine In", "RyanDPI Geo Engine Out",
+                "RyanDPI Geo Bridge TCP-In", "RyanDPI Geo Bridge UDP-In", "RyanDPI Geo Bridge In", "RyanDPI Geo Bridge Out",
                 "RyanDPI Router TCP-In", "RyanDPI Router UDP-In", "RyanDPI Router In", "RyanDPI Router Out",
                 "RyanDPI Encrypted DNS TCP-In", "RyanDPI Encrypted DNS UDP-In", "RyanDPI Encrypted DNS In", "RyanDPI Encrypted DNS Out",
                 "ProxiFyre Inbound", "ProxiFyre Outbound",
@@ -2548,6 +2592,100 @@ if ($networkChanged) {{
             {
                 // Non-fatal
             }
+        }
+
+        private static void EnsureSystemDriveUsersReadExecute()
+        {
+            try
+            {
+                var rootDrive = (Path.GetPathRoot(EngineProxiFyreExe) ?? @"C:\").TrimEnd('\\') + @"\";
+                var ds = new DirectoryInfo(rootDrive).GetAccessControl();
+                bool hasUsersRx = false;
+                foreach (FileSystemAccessRule rule in ds.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+                {
+                    if (rule.AccessControlType != AccessControlType.Allow) continue;
+                    if ((rule.PropagationFlags & PropagationFlags.InheritOnly) != 0) continue;
+                    if (rule.IdentityReference is SecurityIdentifier sid &&
+                        sid.Value.Equals("S-1-5-32-545", StringComparison.OrdinalIgnoreCase) &&
+                        (rule.FileSystemRights & FileSystemRights.ReadAndExecute) == FileSystemRights.ReadAndExecute)
+                    {
+                        hasUsersRx = true;
+                        break;
+                    }
+                }
+                if (!hasUsersRx)
+                {
+                    var res = CommandRunner.Run("icacls.exe", $"{rootDrive} /grant \"*S-1-5-32-545:(OI)(CI)RX\"", 10000);
+                    LogService.Info($"Restored missing BUILTIN\\Users Read & Execute on {rootDrive} root (exit={res.ExitCode}).");
+                }
+            }
+            catch
+            {
+                // Non-fatal
+            }
+        }
+
+        private static async Task<bool> WaitForUsqueTunnelReadyAsync(int bridgePort, int maxWaitMs)
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < maxWaitMs)
+            {
+                if (await ProbeSocks5TcpConnectAsync("127.0.0.1", bridgePort, "1.1.1.1", 443, 2500))
+                {
+                    LogService.Info($"Brazil WARP MASQUE end-to-end SOCKS5 tunnel verified ready in {sw.ElapsedMilliseconds} ms.");
+                    return true;
+                }
+                await Task.Delay(750);
+            }
+            return false;
+        }
+
+        private static async Task<bool> ProbeSocks5TcpConnectAsync(string proxyHost, int proxyPort, string targetIpv4, int targetPort, int timeoutMs)
+        {
+            try
+            {
+                using var tcp = new TcpClient();
+                using var cts = new CancellationTokenSource(timeoutMs);
+                await tcp.ConnectAsync(proxyHost, proxyPort, cts.Token);
+                var ns = tcp.GetStream();
+                await ns.WriteAsync(new byte[] { 0x05, 0x01, 0x00 }, cts.Token);
+                var greet = new byte[2];
+                int n = await ns.ReadAsync(greet, cts.Token);
+                if (n < 2 || greet[0] != 0x05 || greet[1] != 0x00) return false;
+
+                var ipBytes = IPAddress.Parse(targetIpv4).GetAddressBytes();
+                var req = new byte[10];
+                req[0] = 0x05; req[1] = 0x01; req[2] = 0x00; req[3] = 0x01;
+                Buffer.BlockCopy(ipBytes, 0, req, 4, 4);
+                req[8] = (byte)(targetPort >> 8);
+                req[9] = (byte)(targetPort & 0xFF);
+                await ns.WriteAsync(req, cts.Token);
+
+                var rep = new byte[10];
+                int r = await ns.ReadAsync(rep, cts.Token);
+                return r >= 2 && rep[0] == 0x05 && rep[1] == 0x00;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void LogUsqueTail()
+        {
+            try
+            {
+                var logPath = Path.Combine(EngineUsqueDir, "usque.log");
+                if (!File.Exists(logPath)) return;
+                var tail = File.ReadAllLines(logPath).Where(l => !string.IsNullOrWhiteSpace(l)).TakeLast(10).ToList();
+                if (tail.Count == 0) return;
+                LogService.Warn("[usque.log tail]");
+                foreach (var line in tail)
+                {
+                    LogService.Warn($"  {line.Trim()}");
+                }
+            }
+            catch { }
         }
 
         private static async Task<bool> WaitForLocalSocksPortAsync(int port, int maxWaitMs)

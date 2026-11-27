@@ -1,4 +1,4 @@
-# RyanDPI v3.1.5 — Unbound
+# RyanDPI v3.1.6 — Unbound
 
 [English](README.md) | [Türkçe](README.tr.md) | **Português (Brasil)** | [Русский](README.ru.md) | [فارسی](README.fa.md) | [Bahasa Indonesia](README.id.md) | [简体中文](README.zh.md) | [العربية](README.ar.md)
 
@@ -6,11 +6,11 @@
 
 ---
 
-## Download & Início Rápido (`v3.1.5 — Unbound`)
+## Download & Início Rápido (`v3.1.6 — Unbound`)
 
-[![Baixar Instalador Windows](https://img.shields.io/badge/Baixar-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Setup-Windows-3.1.5.exe)
-[![Baixar ZIP Portátil](https://img.shields.io/badge/Baixar-Windows%20Port%C3%A1til%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Portable-Windows-3.1.5.zip)
-[![Baixar APK Android](https://img.shields.io/badge/Baixar-Android%20APK%20(v3.1.5)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Android-3.1.5.apk)
+[![Baixar Instalador Windows](https://img.shields.io/badge/Baixar-Windows%20Setup%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Setup-Windows-3.1.6.exe)
+[![Baixar ZIP Portátil](https://img.shields.io/badge/Baixar-Windows%20Port%C3%A1til%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Portable-Windows-3.1.6.zip)
+[![Baixar APK Android](https://img.shields.io/badge/Baixar-Android%20APK%20(v3.1.6)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Android-3.1.6.apk)
 
 ---
 
@@ -43,13 +43,13 @@ Mas usar uma VPN normal no PC inteiro destrói seu ping no Valorant, CS2, Roblox
 ## Como Usar
 
 ### Windows (10 & 11 x64)
-1. Baixe e instale **[RyanDPI-Setup-Windows-3.1.5.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Setup-Windows-3.1.5.exe)** (ou extraia o [ZIP Portátil](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Portable-Windows-3.1.5.zip)).
+1. Baixe e instale **[RyanDPI-Setup-Windows-3.1.6.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Setup-Windows-3.1.6.exe)** (ou extraia o [ZIP Portátil](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Portable-Windows-3.1.6.zip)).
 2. Na primeira tela, selecione **Brasil — Compartilhar Tela & Vídeo no Discord** e mude o idioma para **`PT`** no topo.
 3. Clique em **"Instalar e Ativar RyanDPI"** e reinicie o Discord (`Ctrl+R` ou feche na bandeja do sistema e abra de novo).
 4. Clique em **"Testar"** para conferir seu IP de saída do Discord e confirmar que seus jogos estão 100% diretos.
 
 ### Android (Android 10–16, Sem Root)
-1. Baixe e instale **[RyanDPI-Android-3.1.5.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.5/RyanDPI-Android-3.1.5.apk)**.
+1. Baixe e instale **[RyanDPI-Android-3.1.6.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Android-3.1.6.apk)**.
 2. Escolha o modo **Brasil**, toque em **"Conectar & Liberar"** e aceite a permissão local do Android.
 3. Somente o app do Discord passará pelo túnel — todos os jogos do celular continuam com 0 ms de lag!
 
