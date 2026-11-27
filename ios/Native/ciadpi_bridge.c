@@ -59,6 +59,7 @@ static pthread_mutex_t g_ciadpi_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t g_ciadpi_thread;
 static atomic_int g_ciadpi_running = 0;
 static int g_thread_valid = 0;
+volatile int ryandpi_ciadpi_cancel = 0;
 
 static void reset_ciadpi_defaults(void)
 {
@@ -73,6 +74,7 @@ static void reset_ciadpi_defaults(void)
     params.laddr.in.sin_family = AF_INET;
     params.debug = 0;
     server_fd = -1;
+    ryandpi_ciadpi_cancel = 0;
     optind = 1;
     optreset = 1;
 }
@@ -156,12 +158,38 @@ int ryandpi_ciadpi_start(int argc, const char *const *argv)
     return 0;
 }
 
+static void wake_listening_socket(int listen_fd)
+{
+    struct sockaddr_storage ss;
+    socklen_t slen = sizeof(ss);
+    memset(&ss, 0, sizeof(ss));
+    if (getsockname(listen_fd, (struct sockaddr *)&ss, &slen) != 0) {
+        return;
+    }
+    if (ss.ss_family == AF_INET) {
+        struct sockaddr_in dst;
+        memcpy(&dst, &ss, sizeof(dst));
+        if (dst.sin_addr.s_addr == htonl(INADDR_ANY)) {
+            dst.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        }
+        int ws = socket(AF_INET, SOCK_STREAM, 0);
+        if (ws >= 0) {
+            struct timeval tv = { 0, 200000 };
+            setsockopt(ws, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+            (void)connect(ws, (struct sockaddr *)&dst, sizeof(dst));
+            close(ws);
+        }
+    }
+}
+
 void ryandpi_ciadpi_stop(void)
 {
     pthread_mutex_lock(&g_ciadpi_lock);
+    ryandpi_ciadpi_cancel = 1;
     int fd = server_fd;
     if (fd > 0) {
-        /* Match hufrea/byedpi on_cancel(): shutdown wakes poll()/accept() and destroy_pool() closes fd cleanly */
+        /* Wake Darwin poll() immediately via loopback connect before shutting down listener */
+        wake_listening_socket(fd);
         shutdown(fd, SHUT_RDWR);
     }
     if (g_thread_valid) {

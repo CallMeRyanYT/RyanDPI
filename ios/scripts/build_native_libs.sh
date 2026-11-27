@@ -16,13 +16,26 @@ MIN_IOS="-miphoneos-version-min=15.0"
 echo "=== 1. Building libciadpi-ios.a (hufrea/byedpi v0.17.3 + ciadpi_bridge) ==="
 git clone --depth 1 --branch v0.17.3 https://github.com/hufrea/byedpi.git "$BUILD_TMP/byedpi"
 
-# iOS forbids BSD daemon(3), so disable the optional -D/--daemon CLI path cleanly
-python3 - "$BUILD_TMP/byedpi/main.c" <<'PY'
+# iOS forbids BSD daemon(3), so disable -D/--daemon and wire instant Darwin poll() cancel hook
+python3 - "$BUILD_TMP/byedpi/main.c" "$BUILD_TMP/byedpi/conev.c" <<'PY'
 import sys
-p = sys.argv[1]
-txt = open(p, 'r', encoding='utf-8').read()
+main_p, conev_p = sys.argv[1], sys.argv[2]
+
+txt = open(main_p, 'r', encoding='utf-8').read()
 txt = txt.replace('#define DAEMON', '/* #define DAEMON disabled on iOS */')
-open(p, 'w', encoding='utf-8').write(txt)
+open(main_p, 'w', encoding='utf-8').write(txt)
+
+ct = open(conev_p, 'r', encoding='utf-8').read()
+needle = 'int ret = poll(pool->pevents, pool->count, ms);'
+assert needle in ct, 'poll() needle not found in conev.c'
+replacement = (
+    'extern volatile int ryandpi_ciadpi_cancel;\n'
+    '            if (ryandpi_ciadpi_cancel) { pool->brk = 1; return 0; }\n'
+    '            int ret = poll(pool->pevents, pool->count, ms);\n'
+    '            if (ryandpi_ciadpi_cancel) { pool->brk = 1; return 0; }'
+)
+ct = ct.replace(needle, replacement, 1)
+open(conev_p, 'w', encoding='utf-8').write(ct)
 PY
 
 BYEDPI_SRC=(packets.c main.c conev.c proxy.c desync.c mpool.c extend.c)
