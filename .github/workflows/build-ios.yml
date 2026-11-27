@@ -15,13 +15,14 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select newest Xcode 16
+      - name: Select Xcode
         run: |
+          ls -d /Applications/Xcode*.app || true
           XCODE_APP="$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -n 1 || true)"
           if [[ -n "$XCODE_APP" ]]; then
             sudo xcode-select -s "$XCODE_APP/Contents/Developer"
