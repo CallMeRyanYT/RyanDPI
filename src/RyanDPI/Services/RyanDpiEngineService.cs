@@ -197,7 +197,7 @@ namespace RyanDPI.Services
                 var (dnsOk, dnsSummary) = await _dnsService.ApplyDnsModeAsync(settings.DnsMode, bundledDnsDir);
                 LogService.Info($"DNS step result: {dnsSummary} (ok={dnsOk})");
 
-                await ConfigureFirewallRulesAsync();
+                await ConfigureFirewallRulesAsync(settings);
 
                 // Step 5: Register & start RyanDPI + ProxiFyreService
                 progress?.Report(new InstallProgressUpdate
@@ -417,7 +417,7 @@ namespace RyanDPI.Services
                         bool vcBroken = GetMissingVcRedistDlls().Count > 0;
                         var (_, repairReboot) = await EnsurePrerequisitesAsync(forceRepairVc: vcBroken);
                         RestageProxiFyreDirectory(settings);
-                        await ConfigureFirewallRulesAsync();
+                        await ConfigureFirewallRulesAsync(settings);
 
                         // Ensure engine is still running after repair prep
                         if (ServiceControlHelper.QueryServiceState(EngineServiceName) != ComponentState.Running)
@@ -454,6 +454,10 @@ namespace RyanDPI.Services
                     // Ensure C:\ has BUILTIN\Users Read & Execute so Electron/Chromium apps (Discord) never fail to launch
                     EnsureSystemDriveUsersReadExecute();
 
+                    // Block browser QUIC UDP/443 in non-Brazil DPI modes so Chrome/Edge/Firefox instantly fall back
+                    // from throttled QUIC to full-speed TCP/443 HTTP/2 through ciadpi (fixes Russia YouTube in browsers!)
+                    ApplyQuicFallbackRule(settings);
+
                     LogService.Info("RyanDPI services are now running.");
                     return new OperationResult { Success = true, Message = LocalizationService.T("Msg_Started") };
                 }
@@ -475,6 +479,7 @@ namespace RyanDPI.Services
                     // Always stop router BEFORE stopping local SOCKS engine to prevent transient connection errors
                     ServiceControlHelper.StopService(RouterServiceName);
                     ServiceControlHelper.StopService(EngineServiceName);
+                    RemoveQuicBlockRule();
                     LogService.Info("RyanDPI paused cleanly. Direct internet routing restored.");
                     return new OperationResult { Success = true, Message = LocalizationService.T("Msg_Paused") };
                 }
@@ -587,7 +592,7 @@ namespace RyanDPI.Services
                 }
 
                 // Refresh firewall rules & network-switch watcher (e.g. if DNS mode changed)
-                await ConfigureFirewallRulesAsync();
+                await ConfigureFirewallRulesAsync(settings);
                 await ConfigureNetworkWatchTaskAsync(settings);
 
                 // Restart engine & router cleanly
@@ -644,7 +649,7 @@ namespace RyanDPI.Services
                     await _dnsService.ApplyDnsModeAsync(settings.DnsMode, bundledDnsDir);
                 }
 
-                await ConfigureFirewallRulesAsync();
+                await ConfigureFirewallRulesAsync(settings);
                 await ConfigureNetworkWatchTaskAsync(settings);
 
                 if (hasOldV200Service || status.EngineState == ComponentState.NotInstalled || status.RouterState == ComponentState.NotInstalled)
@@ -918,9 +923,9 @@ namespace RyanDPI.Services
                 {
                     (LocalizationService.T("SelfTest_Discord"), "https://discord.com/api/v10/gateway", HttpMethod.Get),
                     (LocalizationService.T("SelfTest_YouTube"), "https://www.youtube.com/", HttpMethod.Head),
+                    ("YouTube Video CDN", "https://i.ytimg.com/generate_204", HttpMethod.Get),
                     (LocalizationService.T("SelfTest_Instagram"), "https://www.instagram.com/", HttpMethod.Head),
                     (LocalizationService.T("SelfTest_RobloxApp"), "https://clientsettings.roblox.com/v2/client-version/WindowsPlayer", HttpMethod.Get),
-                    (LocalizationService.T("SelfTest_RobloxWeb"), "https://www.roblox.com/", HttpMethod.Head),
                     (LocalizationService.T("SelfTest_DirectBaseline"), "https://1.1.1.1/cdn-cgi/trace", HttpMethod.Get)
                 }
                 : new (string Name, string Url, HttpMethod WarmMethod)[]
@@ -1653,7 +1658,7 @@ try {{
                 };
             }
 
-            await ConfigureFirewallRulesAsync();
+            await ConfigureFirewallRulesAsync(settings);
             return await StartAsync(settings);
         }
 
@@ -2293,7 +2298,37 @@ $evts | Where-Object {
             return false;
         }
 
-        private static async Task ConfigureFirewallRulesAsync()
+        private const string QuicBlockRuleName = "RyanDPI Block QUIC UDP-443";
+
+        private static void ApplyQuicFallbackRule(RyanDpiSettings? settings)
+        {
+            RemoveQuicBlockRule();
+            // In Global / Russia / Turkey DPI modes (never Brazil, where usque uses WARP MASQUE over UDP/443!),
+            // blocking outbound UDP/443 forces Chrome, Edge, Brave, Opera, Yandex & Firefox to immediately fall back
+            // from ISP-throttled HTTP/3 QUIC to full-speed TCP/443 HTTP/2 routed cleanly through ciadpi!
+            // Zero impact on games (games don't use UDP/443), Discord Voice (UDP 50000-65535), or dnscrypt-proxy (http3=false).
+            if (settings != null && settings.Region != RegionPreset.Brazil)
+            {
+                var q = CommandRunner.Run("netsh.exe",
+                    $"advfirewall firewall add rule name=\"{QuicBlockRuleName}\" dir=out action=block protocol=UDP remoteport=443 profile=any enable=yes",
+                    10000);
+                if (q.ExitCode == 0)
+                {
+                    LogService.Info("Enabled browser QUIC (UDP/443) → TCP/443 HTTP/2 fallback rule for full YouTube/browser unblock.");
+                }
+                else
+                {
+                    LogService.Warn($"Could not add QUIC fallback rule (exit {q.ExitCode}): {CollapseWhitespace(q.CombinedOutput)}");
+                }
+            }
+        }
+
+        private static void RemoveQuicBlockRule()
+        {
+            CommandRunner.Run("netsh.exe", $"advfirewall firewall delete rule name=\"{QuicBlockRuleName}\"", 8000);
+        }
+
+        private static async Task ConfigureFirewallRulesAsync(RyanDpiSettings? settings = null)
         {
             await Task.Run(() =>
             {
@@ -2326,6 +2361,7 @@ $evts | Where-Object {
                     }
                 }
 
+                ApplyQuicFallbackRule(settings);
                 LogService.Info("Windows Firewall allow rules configured (TCP/UDP, all profiles).");
             });
         }
@@ -2339,6 +2375,7 @@ $evts | Where-Object {
                 "RyanDPI Geo Bridge TCP-In", "RyanDPI Geo Bridge UDP-In", "RyanDPI Geo Bridge In", "RyanDPI Geo Bridge Out",
                 "RyanDPI Router TCP-In", "RyanDPI Router UDP-In", "RyanDPI Router In", "RyanDPI Router Out",
                 "RyanDPI Encrypted DNS TCP-In", "RyanDPI Encrypted DNS UDP-In", "RyanDPI Encrypted DNS In", "RyanDPI Encrypted DNS Out",
+                QuicBlockRuleName,
                 "ProxiFyre Inbound", "ProxiFyre Outbound",
                 "ByeDPI ciadpi Inbound", "ByeDPI ciadpi Outbound"
             };

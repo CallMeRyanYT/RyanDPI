@@ -39,18 +39,19 @@ namespace RyanDPI.Models
         public const int DefaultSocksPort = 1080;
         public const int UsqueSocksPort = 1082;
 
-        // 7-stage Global Zero-Lag strategy:
+        // 7-stage Global Zero-Lag strategy (Windows & Android parity):
         // Stage 1 (--tlsrec 1+s) has 0ms added latency & unlocks Turkey / light DPI on packet 1.
-        // Stages 2-6 automatically adapt across Russia TSPU (YouTube/Discord/Instagram), Superonline,
-        // mobile networks, and strict global DPI firewalls; Stage 7 falls back cleanly to passthrough.
+        // Stages 2-6 automatically adapt across Russia TSPU (YouTube/googlevideo, Discord, Instagram),
+        // Chrome/Edge TLS 1.3 Post-Quantum ML-KEM/Kyber ClientHello, Superonline, mobile networks,
+        // and strict global DPI firewalls; Stage 7 falls back cleanly to passthrough.
         // Per-IP 24h caching (-u 86400 -L 3) locks onto the fastest working stage with zero extra lag!
         public const string AutoUniversalStrategy =
             "--tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
-            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --disorder 1+s --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s --split 1+s " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
+            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec 3+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err";
 
         // Ultra-lean 3-stage Turkey BTK chain: 0ms Stage 1 (--tlsrec 1+s) + Superonline split/OOB fallbacks.
@@ -61,22 +62,25 @@ namespace RyanDPI.Models
             "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
             "--auto=torst,redirect,ssl_err";
 
-        // Russia TSPU-first chain: opens immediately with proven Rostelecom/MTS/YouTube/Discord split+disorder+tlsrec
+        // Russia TSPU-first chain tuned for browser YouTube (youtube.com + googlevideo.com), Discord, Instagram & Roblox:
+        // Uses +s SNI-anchored disorder/disoob/split/tlsrec (works even with Chrome's 1.8KB Post-Quantum ML-KEM/Kyber ClientHello!)
+        // + randomized fake TLS with neutral non-Google SNI at TTL 8 & TTL 5, paired with automatic browser QUIC UDP/443 fallback!
         public const string RussiaTspuStrategy =
-            "--split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
-            "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+            "--disorder 1+s --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --split 1+s --tlsrec 1+s --oob 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --split 1+s --disorder 3+s " +
+            "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec 3+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err";
 
         public const string ClassicByeDpiStrategy =
             "--tlsrec 1+s --mod-http=h,d --auto=torst --split 1 --disorder 3+s";
 
         public const string StrictIspStrategy =
-            "--tlsrec 1+s --split 1 --mod-http=h,d " +
-            "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-            "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
+            "--disorder 1+s --tlsrec 1+s --mod-http=h,d " +
+            "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s " +
+            "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
             "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
             "--auto=torst,redirect,ssl_err";
 
@@ -155,7 +159,7 @@ namespace RyanDPI.Models
             var baseFlags = $"-i 127.0.0.1 -p {DefaultSocksPort} -c 2048 -b 65536 -u 86400 -T 2 -L 3";
             if (TunnelUdp)
             {
-                baseFlags += " -a 1";
+                baseFlags += " -a 3";
             }
 
             var rawStrategy = Profile switch

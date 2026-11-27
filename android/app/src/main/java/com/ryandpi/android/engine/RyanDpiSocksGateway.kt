@@ -35,7 +35,8 @@ import java.util.concurrent.atomic.AtomicReference
 class RyanDpiSocksGateway(
     private val listenPort: Int,
     private val upstreamCiadpiPort: Int,
-    private val dohResolver: DohDnsResolver
+    private val dohResolver: DohDnsResolver,
+    private val blockQuicUdp443: Boolean = true
 ) {
     companion object {
         private const val BUFFER_SIZE = 16 * 1024
@@ -496,8 +497,12 @@ class RyanDpiSocksGateway(
                                 }
                             }
                         }
+                    } else if (blockQuicUdp443 && dstPort == 443) {
+                        // Drop ISP-throttled HTTP/3 QUIC (UDP/443) so Chrome & YouTube app instantly fall back
+                        // to full-speed TCP/443 HTTP/2 through ciadpi (fixes Russia YouTube in browsers & app!)
+                        continue
                     } else {
-                        // Zero-copy forward non-DNS UDP (Discord Voice, Roblox Game UDP, QUIC) to ciadpi
+                        // Zero-copy forward non-DNS UDP (Discord Voice, Roblox Game UDP) to ciadpi
                         val relay = ensureUpstreamUdpRelay() ?: continue
                         val (upSock, upTarget) = relay
                         runCatching {

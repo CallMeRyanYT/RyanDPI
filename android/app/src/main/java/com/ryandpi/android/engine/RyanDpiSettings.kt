@@ -79,16 +79,16 @@ data class RyanDpiSettings(
 
         val SUPPORTED_LANGUAGES = listOf("en", "tr", "pt", "ru", "fa", "id", "zh", "ar")
 
-        // 7-stage Global Zero-Lag strategy (matches RyanDPI Windows v3.0.0 Unbound):
+        // 7-stage Global Zero-Lag strategy (matches RyanDPI Windows v3.1.7 Unbound):
         // Stage 1 (--tlsrec 1+s) gives 0ms added lag in Turkey / light DPI, while Stages 2-6
-        // auto-adapt for Russia TSPU (YouTube/Discord/Instagram), Superonline & mobile ISPs.
+        // auto-adapt for Russia TSPU (YouTube/googlevideo, Discord, Instagram), Chrome Post-Quantum ML-KEM/Kyber & mobile ISPs.
         const val AUTO_UNIVERSAL_STRATEGY =
             "--tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
-                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --disorder 1+s --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s --split 1+s " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
+                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec 3+s --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err"
 
         // Ultra-lean 3-stage Turkey BTK strategy: 0ms Stage 1 + Superonline fallbacks (zero wasted Russia/Iran retries)
@@ -99,20 +99,21 @@ data class RyanDpiSettings(
                 "--auto=torst,redirect,ssl_err"
 
         const val RUSSIA_TSPU_STRATEGY =
-            "--split 2 --disorder -1+s --tlsrec 1+s --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
-                "--auto=torst,redirect,ssl_err --tlsrec 1+s --split 1 --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
+            "--disorder 1+s --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --split 1+s --tlsrec 1+s --oob 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.wikipedia.org --fake-tls-mod=rand --split 1+s --disorder 3+s " +
+                "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --tlsrec 3+s --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err"
 
         const val CLASSIC_BYEDPI_STRATEGY =
             "--tlsrec 1+s --mod-http=h,d --auto=torst --split 1 --disorder 3+s"
 
         const val STRICT_ISP_STRATEGY =
-            "--tlsrec 1+s --split 1 --mod-http=h,d " +
-                "--auto=torst,redirect,ssl_err --oob 1+s --tlsrec 1+s " +
-                "--auto=torst,redirect,ssl_err --fake -1 --ttl 5 --fake-sni www.google.com --disorder 3+s " +
+            "--disorder 1+s --tlsrec 1+s --mod-http=h,d " +
+                "--auto=torst,redirect,ssl_err --disoob 1+s --tlsrec 1+s " +
+                "--auto=torst,redirect,ssl_err --fake -1 --ttl 8 --fake-sni www.wikipedia.org --fake-tls-mod=rand --disorder 1+s --tlsrec 1+s " +
                 "--auto=torst,redirect,ssl_err --split 1 --disorder 3+s --mod-http=h,d " +
                 "--auto=torst,redirect,ssl_err"
 
@@ -290,7 +291,7 @@ data class RyanDpiSettings(
         )
         if (udpBypass) {
             args.add("-a")
-            args.add("1")
+            args.add("3")
         }
         val tokens = activeStrategyString()
             .replace('\r', ' ')

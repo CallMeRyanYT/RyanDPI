@@ -2,7 +2,7 @@
 ; Requires Inno Setup 6
 
 #define MyAppName "RyanDPI"
-#define MyAppVersion "3.1.6"
+#define MyAppVersion "3.1.7"
 #define MyAppPublisher "RyanDPI"
 #define MyAppURL "https://github.com/CallMeRyanYT/RyanDPI"
 #define MyAppExeName "RyanDPI.exe"
@@ -214,6 +214,7 @@ begin
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS UDP-In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS In"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Encrypted DNS Out"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('netsh.exe', 'advfirewall firewall delete rule name="RyanDPI Block QUIC UDP-443"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Ensure no lingering engine processes lock files before deleting {app}\engine
     Exec('taskkill.exe', '/F /IM ProxiFyre.exe /IM ciadpi.exe /IM usque.exe /IM dnscrypt-proxy.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);

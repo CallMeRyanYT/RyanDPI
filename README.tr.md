@@ -1,18 +1,18 @@
-# RyanDPI v3.1.6 — Unbound
+# RyanDPI v3.1.7 — Unbound
 
 [English](README.md) | **Türkçe** | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md) | [فارسی](README.fa.md) | [Bahasa Indonesia](README.id.md) | [简体中文](README.zh.md) | [العربية](README.ar.md)
 
 **RyanDPI — Unbound**, **Türkiye, Rusya, Brezilya ve tüm dünyadaki** engelli uygulama ve siteleri — **Discord, Discord Ekran Paylaşımı, Roblox, Roblox Studio, YouTube, Instagram, Wattpad** dahil — **internet hızını düşürmeden ve oyun pingini artırmadan** tek tıkla açan modern **Windows & Android** aracıdır.
 
-**v3.1.6 — Unbound** ile ilk açılış **Ülke/Bölge Seçici**, **7 Aşamalı Evrensel Küresel DPI Motoru**, özel **Türkiye (BTK)**, **Rusya (TSPU)** ve **Brezilya (0 ms Oyun Pingli Discord Bölünmüş Tünel)** modları ve **8 dahili dil** tek uygulamada birleşiyor!
+**v3.1.7 — Unbound** ile ilk açılış **Ülke/Bölge Seçici**, **7 Aşamalı Evrensel Küresel DPI Motoru**, özel **Türkiye (BTK)**, **Rusya (TSPU)** ve **Brezilya (0 ms Oyun Pingli Discord Bölünmüş Tünel)** modları ve **8 dahili dil** tek uygulamada birleşiyor!
 
 ---
 
-## İndirme ve Hızlı Başlangıç (`v3.1.6 — Unbound`)
+## İndirme ve Hızlı Başlangıç (`v3.1.7 — Unbound`)
 
-[![Windows Kurulumunu İndir](https://img.shields.io/badge/İndir-Windows%20Kurulum%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Setup-Windows-3.1.6.exe)
-[![Taşınabilir ZIP İndir](https://img.shields.io/badge/İndir-Windows%20Taşınabilir%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Portable-Windows-3.1.6.zip)
-[![Android APK İndir](https://img.shields.io/badge/İndir-Android%20APK%20(v3.1.6)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Android-3.1.6.apk)
+[![Windows Kurulumunu İndir](https://img.shields.io/badge/İndir-Windows%20Kurulum%20(.exe)-FF1E3C?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Setup-Windows-3.1.7.exe)
+[![Taşınabilir ZIP İndir](https://img.shields.io/badge/İndir-Windows%20Taşınabilir%20(.zip)-111116?style=for-the-badge&logo=windows)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Portable-Windows-3.1.7.zip)
+[![Android APK İndir](https://img.shields.io/badge/İndir-Android%20APK%20(v3.1.7)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Android-3.1.7.apk)
 
 ---
 
@@ -43,12 +43,12 @@
 ## Hızlı Kurulum
 
 ### Windows (10 & 11 x64)
-1. **[RyanDPI-Setup-Windows-3.1.6.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Setup-Windows-3.1.6.exe)** kurulumunu indirip çalıştır (veya [Taşınabilir ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Portable-Windows-3.1.6.zip) çıkarıp `RyanDPI.exe`'yi aç).
+1. **[RyanDPI-Setup-Windows-3.1.7.exe](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Setup-Windows-3.1.7.exe)** kurulumunu indirip çalıştır (veya [Taşınabilir ZIP](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Portable-Windows-3.1.7.zip) çıkarıp `RyanDPI.exe`'yi aç).
 2. İlk açılışta **Türkiye** veya **Evrensel Küresel** modunu seç (üst bardan dilediğin zaman değiştirebilirsin).
 3. **"RyanDPI'yı Kur ve Etkinleştir"** düğmesine tıkla, ardından **"Testi Çalıştır"** ile Discord, Roblox ve canlı pingi doğrula.
 
 ### Android (Android 10–16, Root Gerekmez)
-1. **[RyanDPI-Android-3.1.6.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.6/RyanDPI-Android-3.1.6.apk)** dosyasını indirip telefonuna kur.
+1. **[RyanDPI-Android-3.1.7.apk](https://github.com/CallMeRyanYT/RyanDPI/releases/download/v3.1.7/RyanDPI-Android-3.1.7.apk)** dosyasını indirip telefonuna kur.
 2. Ülkeni seç, **"Bağlan & Aç"** düğmesine dokun ve Android yerel VPN iznini onayla *(uzak VPN sunucusu kullanmaz!)*.
 3. Bildirim paneline **RyanDPI Hızlı Ayarlar Kutucuğu** ekleyerek tek dokunuşla aç/kapa.
 
