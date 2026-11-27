@@ -140,9 +140,8 @@ void ryandpi_ciadpi_stop(void)
     pthread_mutex_lock(&g_ciadpi_lock);
     int fd = server_fd;
     if (fd > 0) {
+        /* Match hufrea/byedpi on_cancel(): shutdown wakes poll()/accept() and destroy_pool() closes fd cleanly */
         shutdown(fd, SHUT_RDWR);
-        close(fd);
-        server_fd = -1;
     }
     if (g_thread_valid) {
         pthread_t th = g_ciadpi_thread;
