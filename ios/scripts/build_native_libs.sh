@@ -28,7 +28,7 @@ PY
 BYEDPI_SRC=(packets.c main.c conev.c proxy.c desync.c mpool.c extend.c)
 BYEDPI_OBJS=()
 for f in "${BYEDPI_SRC[@]}"; do
-    EXTRA_DEFS="-D_DEFAULT_SOURCE -DNOEPOLL"
+    EXTRA_DEFS="-D_DEFAULT_SOURCE"
     if [[ "$f" == "main.c" ]]; then
         EXTRA_DEFS="$EXTRA_DEFS -Dmain=ciadpi_main"
     fi
@@ -50,7 +50,7 @@ cp "$IOS_DIR/Native/ciadpi_bridge.h" "$VENDOR_DIR/include/ciadpi_bridge.h"
 echo "=== 2. Running macOS host sanity test of embedded ciadpi iOS presets ==="
 MAC_OBJS=()
 for f in "${BYEDPI_SRC[@]}"; do
-    EXTRA_DEFS="-D_DEFAULT_SOURCE -DNOEPOLL"
+    EXTRA_DEFS="-D_DEFAULT_SOURCE"
     if [[ "$f" == "main.c" ]]; then
         EXTRA_DEFS="$EXTRA_DEFS -Dmain=ciadpi_main"
     fi

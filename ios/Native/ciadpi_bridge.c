@@ -9,10 +9,31 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <sys/kern_control.h>
 #include <sys/socket.h>
-#include <sys/sys_domain.h>
 #include <unistd.h>
+
+#if defined(__has_include) && __has_include(<sys/kern_control.h>)
+#include <sys/kern_control.h>
+#include <sys/sys_domain.h>
+#else
+#ifndef AF_SYSTEM
+#define AF_SYSTEM 32
+#endif
+#ifndef AF_SYS_CONTROL
+#define AF_SYS_CONTROL 2
+#endif
+#ifndef SYSPROTO_CONTROL
+#define SYSPROTO_CONTROL 2
+#endif
+struct sockaddr_ctl {
+    uint8_t  sc_len;
+    uint8_t  sc_family;
+    uint16_t ss_sysaddr;
+    uint32_t sc_id;
+    uint32_t sc_unit;
+    uint32_t sc_reserved[5];
+};
+#endif
 
 #include "params.h"
 
@@ -162,10 +183,6 @@ int ryandpi_ciadpi_is_running(void)
 
 int ryandpi_find_utun_fd(void)
 {
-    struct ctl_info ctlInfo;
-    memset(&ctlInfo, 0, sizeof(ctlInfo));
-    strncpy(ctlInfo.ctl_name, "com.apple.net.utun_control", sizeof(ctlInfo.ctl_name) - 1);
-
     for (int fd = 0; fd < 1024; fd++) {
         struct sockaddr_ctl addr;
         socklen_t len = sizeof(addr);
