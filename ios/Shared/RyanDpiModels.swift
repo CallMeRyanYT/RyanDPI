@@ -180,6 +180,7 @@ public struct RyanDpiSettings: Codable, Equatable {
 
     public func buildCiadpiArgs(listenPort: Int = RyanDpiSettings.ciadpiInternalPort) -> [String] {
         // Ultra-low-RAM iOS NetworkExtension footprint (-c 256 -b 16384 keeps RSS ~15 MB, far below Apple's 50 MB limit)
+        // Note: hufrea/byedpi omits TIMEOUT_SUPPORT (-T) on Darwin NOEPOLL builds, so we pass only Darwin-supported flags!
         var args = [
             "ciadpi",
             "-i", "127.0.0.1",
@@ -187,7 +188,6 @@ public struct RyanDpiSettings: Codable, Equatable {
             "-c", "256",
             "-b", "16384",
             "-u", "3600",
-            "-T", "2",
             "-L", "3"
         ]
         if udpBypass {

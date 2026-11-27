@@ -82,7 +82,7 @@ static int check_port(int port) {
 int main(void) {
     const char *ru_args[] = {
         "ciadpi", "-i", "127.0.0.1", "-p", "18081", "-c", "256", "-b", "16384",
-        "-u", "3600", "-T", "2", "-L", "3", "-a", "3",
+        "-u", "3600", "-L", "3", "-a", "3",
         "--hosts", ":googlevideo.com", "--tlsrec", "1+s", "--tlsrec", "-5+se", "--split", "2", "--disorder", "1+s", "--split", "4:14:3+s",
         "--auto=torst,redirect,ssl_err", "--hosts", ":googlevideo.com", "--split", "2", "--disoob", "1+s", "--tlsrec", "-5+se", "--split", "4:14:3+s",
         "--auto=none", "--split", "2", "--disorder", "-1+s", "--tlsrec", "1+s", "--mod-http=h,d",
@@ -105,7 +105,7 @@ int main(void) {
     /* Verify restart works cleanly after optind/optreset reset */
     const char *tr_args[] = {
         "ciadpi", "-i", "127.0.0.1", "-p", "18082", "-c", "256", "-b", "16384",
-        "-u", "3600", "-T", "2", "-L", "3",
+        "-u", "3600", "-L", "3",
         "--tlsrec", "1+s", "--mod-http=h,d",
         "--auto=torst,redirect,ssl_err", "--tlsrec", "1+s", "--split", "1", "--mod-http=h,d",
         "--auto=torst,redirect,ssl_err", "--oob", "1+s", "--tlsrec", "1+s",
